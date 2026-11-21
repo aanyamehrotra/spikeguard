@@ -61,6 +61,6 @@ The dashboard plots the gateway queue, llama.cpp's deferred requests and active 
 
 Metrics mode leaves five seconds before the first request and after the last outcome so Prometheus can collect the initial and final counters. For a fresh run, zoom Grafana to the minutes around the replay. `docker compose down` stops monitoring and preserves its local volumes.
 
-See [AGENTS.md](AGENTS.md) for the draft SLO and test scenarios. The [measured direct run](benchmarks/README.md) reproduced queue growth and timeouts. Priority lanes, adaptive concurrency and the full capacity report are pending. Capacity on this Mac will differ from datacenter GPU capacity.
+See [AGENTS.md](AGENTS.md) for the draft SLO and test scenarios. The [measured direct and gateway runs](benchmarks/README.md) show the trade-off between queueing and explicit rejection. Priority lanes, adaptive concurrency and the full capacity report are pending. Capacity on this Mac will differ from datacenter GPU capacity.
 
 [llama.cpp server documentation](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md) · [Qwen model card](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF) · [Docker Desktop host connectivity](https://docs.docker.com/desktop/features/networking/networking-how-tos/)
