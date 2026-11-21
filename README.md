@@ -25,6 +25,6 @@ The default baseline, spike and recovery offer 0.5, 8 and 0.5 requests per secon
 
 The JSON records per-request dispatch lag, status, latency and outcome. TTFT starts at client dispatch and ends at the first nonempty assistant content. A completed request also needs the stream terminator. Phase summaries group requests by scheduled arrival and report nearest-rank p95 among completions, intentional shedding and errors. Completed requests per offered second includes completions after the phase ended. Compare completion fraction alongside p95, especially when requests time out.
 
-See [AGENTS.md](AGENTS.md) for the draft SLO and test scenarios. Native results, Prometheus/Grafana provisioning, admission control and the comparison report are pending. Capacity on this Mac will differ from datacenter GPU capacity.
+See [AGENTS.md](AGENTS.md) for the draft SLO and test scenarios. The [measured direct run](benchmarks/README.md) reproduced queue growth and timeouts. Prometheus/Grafana provisioning, admission control and the comparison report are pending. Capacity on this Mac will differ from datacenter GPU capacity.
 
 [llama.cpp server documentation](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md) · [Qwen model card](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF)
