@@ -3,7 +3,7 @@
   "title": "SpikeGuard \u00b7 Replay overview",
   "description": "Native llama.cpp queue and client-observed streaming outcomes during a local replay.",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "editable": false,
   "tags": [
     "spikeguard"
@@ -23,8 +23,8 @@
   "panels": [
     {
       "id": 1,
-      "title": "Model queue and active slots",
-      "description": "Deferred requests in llama.cpp and requests currently processing.",
+      "title": "Queues and active requests",
+      "description": "Gateway waiting and active requests alongside native llama.cpp deferred requests and processing slots.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -50,6 +50,20 @@
           "range": true,
           "instant": false,
           "refId": "B"
+        },
+        {
+          "expr": "spikeguard_gateway_queue_depth{job=\"gateway\"}",
+          "legendFormat": "Gateway waiting",
+          "range": true,
+          "instant": false,
+          "refId": "C"
+        },
+        {
+          "expr": "spikeguard_gateway_active{job=\"gateway\"}",
+          "legendFormat": "Gateway active",
+          "range": true,
+          "instant": false,
+          "refId": "D"
         }
       ],
       "fieldConfig": {

@@ -9,3 +9,6 @@ scrape_configs:
   - job_name: replay
     static_configs:
       - targets: ["host.docker.internal:9109"]
+  - job_name: gateway
+    static_configs:
+      - targets: ["gateway:8081"]

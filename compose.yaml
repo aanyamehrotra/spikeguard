@@ -1,6 +1,17 @@
 name: spikeguard
 
 services:
+  gateway:
+    build: .
+    environment:
+      SPIKEGUARD_UPSTREAM: http://host.docker.internal:8080
+      SPIKEGUARD_CONCURRENCY: ${SPIKEGUARD_CONCURRENCY:-2}
+      SPIKEGUARD_QUEUE_LIMIT: ${SPIKEGUARD_QUEUE_LIMIT:-2}
+      SPIKEGUARD_QUEUE_WAIT_S: ${SPIKEGUARD_QUEUE_WAIT_S:-0.25}
+      SPIKEGUARD_DEADLINE_S: ${SPIKEGUARD_DEADLINE_S:-25}
+    ports:
+      - "127.0.0.1:8081:8081"
+
   prometheus:
     image: prom/prometheus:v3.16.0
     command:
