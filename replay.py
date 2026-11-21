@@ -7,8 +7,11 @@ import math
 from pathlib import Path
 import random
 import statistics
+import time
 
 import httpx
+
+from replay_metrics import ReplayMetrics
 
 PHASES = ('baseline', 'spike', 'recovery')
 
@@ -89,7 +92,14 @@ def summarize(rows, durations):
     return summaries
 
 
-async def replay(args, tickets):
+async def measured_request(client, target, task, origin, timeout, metrics):
+    metrics.offered.labels(task[0]).inc()
+    row = await request(client, target, task, origin, timeout)
+    metrics.record(row)
+    return row
+
+
+async def replay(args, tickets, metrics=None):
     tasks = []
     loop = asyncio.get_running_loop()
     target = args.url.rstrip('/') + '/v1/chat/completions'
@@ -98,7 +108,11 @@ async def replay(args, tickets):
         origin = loop.time()
         for task in schedule(args.rates, args.durations, tickets, args.seed):
             await asyncio.sleep(max(0, origin + task[1] - loop.time()))
-            tasks.append(asyncio.create_task(request(client, target, task, origin, args.timeout)))
+            if metrics is None:
+                pending = request(client, target, task, origin, args.timeout)
+            else:
+                pending = measured_request(client, target, task, origin, args.timeout, metrics)
+            tasks.append(asyncio.create_task(pending))
         return await asyncio.gather(*tasks)
 
 
@@ -109,14 +123,33 @@ def main():
     parser.add_argument('--durations', type=float, nargs=3, default=(30, 30, 45))
     parser.add_argument('--timeout', type=float, default=15)
     parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--metrics-port', type=int, help='Serve live Prometheus metrics on loopback')
     parser.add_argument('--output', type=Path, default=Path('runs/direct.json'))
     args = parser.parse_args()
     if any(not math.isfinite(value) or value <= 0 for value in [*args.rates, *args.durations, args.timeout]):
         parser.error('rates, durations and timeout must be positive and finite')
     if httpx.URL(args.url).host not in {'localhost', '127.0.0.1', '::1'}:
         parser.error('the replay endpoint must be on loopback')
+    if args.metrics_port is not None and not 1 <= args.metrics_port <= 65535:
+        parser.error('metrics port must be between 1 and 65535')
     tickets = json.loads(Path(__file__).with_name('tickets.json').read_text())
-    rows = asyncio.run(replay(args, tickets))
+    if args.metrics_port is None:
+        rows = asyncio.run(replay(args, tickets))
+    else:
+        metrics = ReplayMetrics(PHASES)
+        try:
+            server, thread = metrics.start(args.metrics_port)
+        except OSError as exc:
+            parser.error(f'cannot start metrics exporter: {exc}')
+        try:
+            # With 2s scrapes, expose zero and final counters for at least two samples.
+            time.sleep(5)
+            rows = asyncio.run(replay(args, tickets, metrics))
+            time.sleep(5)
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join()
     summary = summarize(rows, args.durations)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(dict(
