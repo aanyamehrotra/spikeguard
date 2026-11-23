@@ -1,6 +1,31 @@
 # SpikeGuard
 
-SpikeGuard is a local load-shedding gateway for LLM ticket summarization. Run a native model and a streaming gateway, then replay the same traffic against both to measure overload, paid-lane isolation and steady-state capacity.
+SpikeGuard is a streaming gateway that protects paid LLM traffic when free traffic spikes. It caps upstream concurrency and queue time, rejects excess work with `429 Retry-After`, and leaves the model's token stream intact. The replay harness measures how those choices affect completion, first-token latency and recovery.
+
+## Try it in under a minute
+
+With Python 3.11 or newer, run these commands from the repository root. The demo starts a two-slot streaming fixture and the real gateway on temporary loopback ports.
+
+```sh
+python -m pip install -r requirements.txt
+python -m scripts.demo --check
+```
+
+The demo sends the same baseline, spike and recovery traffic directly to the fixture, through a FIFO gateway and through a gateway with a reserved paid lane. It prints paid and free completion, sheds, errors and p95 time to first content for each path. The raw trace goes to `runs/demo.json`. The test suite also checks paid capacity and disconnect cleanup over HTTP.
+
+```mermaid
+flowchart LR
+    Replay[Seeded open-loop replay] -->|direct control| Model[llama.cpp or SSE fixture]
+    Replay -->|gateway trial| Admission[Bounded admission]
+    Admission -->|free and paid lanes| Model
+    Admission -->|queue limit or expiry| Shed[429 with Retry-After]
+    Model -->|time to first content| Admission
+    Admission -.-> Prometheus
+    Replay -.-> Prometheus
+    Prometheus --> Grafana
+```
+
+Run `python -m unittest discover -s tests -v` for the full checks. See the [measured runs](benchmarks/README.md) for results, hardware and reproduction steps.
 
 ## Run the baseline on Apple Silicon
 
@@ -23,7 +48,7 @@ python3 -m venv .venv
 
 The default baseline, spike and recovery offer 0.5, 8 and 0.5 requests per second over 30, 30 and 45 seconds. Tune `--rates` so baseline is healthy and the spike overloads your Mac. Requests arrive on schedule independently of previous completions. Keep rates, durations, seed and timeout fixed between direct and gateway runs. Warm the model before measurement and record the Mac hardware, llama.cpp version, model quantization and slot count.
 
-The JSON records per-request dispatch lag, status, latency and outcome. TTFT starts at client dispatch and ends at the first nonempty assistant content. A completed request also needs the stream terminator. Phase summaries group requests by scheduled arrival and report nearest-rank p95 among completions, intentional shedding and errors. Completed requests per offered second includes completions after the phase ended. Compare completion fraction alongside p95, especially when requests time out.
+The JSON records per-request dispatch lag, status, latency and outcome. TTFT starts at client dispatch and ends at the first nonempty assistant content. Completion requires a complete SSE `[DONE]` event. Phase summaries group requests by scheduled arrival and report completed-stream p95, intentional sheds, errors, and tail latency for dispatch, completion and shedding. Completed requests per offered second includes completions after the phase ended. Read completion fraction alongside p95, especially when requests time out.
 
 ## Replay through the gateway
 
@@ -91,7 +116,7 @@ Start the model and gateway as above. The default sweep uses short pilot windows
 
 The default targets are direct llama.cpp and the gateway. Use repeated `--target NAME=URL` flags to compare other loopback configurations. `--paid-rate` adds constant paid traffic to every tested point. Match the model settings and restart the gateway when changing configurations so each sweep starts from the same controller state. Use `--include-requests` to retain the request-level traces, including warm-up.
 
-The sweep excludes warm-up by scheduled arrival and waits for in-flight requests before moving to the next trial. Each repeat uses the same ticket seed across targets. A test point passes when p95 TTFT is below 2 seconds, unexpected errors are below 1% of offered requests, and completion is at least 99%. Each active tier and the aggregate must pass in every repeat. A rate with too few requests is reported as insufficiently sampled and cannot qualify. The result is the highest **tested** passing rate under the recorded setup. See the [benchmark results and fixture](benchmarks/README.md).
+The sweep excludes warm-up by scheduled arrival and waits for in-flight requests before moving to the next trial. It rotates target order and uses the same ticket seed across targets within a repeat. The report includes a workload fingerprint, the execution order, actual offered rate and p95 dispatch lag so results can be audited. A test point passes when p95 TTFT is below 2 seconds, unexpected errors are below 1% of offered requests, and completion is at least 99%. Each active tier and the aggregate must pass in every repeat. A rate with too few requests is reported as insufficiently sampled and cannot qualify. The result is the highest **tested** passing rate under the recorded setup. See the [benchmark results and fixture](benchmarks/README.md).
 
 ## Watch a replay in Grafana
 
@@ -104,7 +129,7 @@ docker compose up -d
 
 Open [SpikeGuard · Replay overview](http://localhost:3000/d/spikeguard-overview) in Grafana. On first login use Grafana's default `admin` / `admin` and set a new password. The [Prometheus targets page](http://localhost:9090/targets) shows whether scrapes are working. The `replay` target is available only while a replay with metrics enabled is running. Both services are published on loopback. Docker Desktop reaches the native endpoints through `host.docker.internal`.
 
-The dashboard plots gateway queue depth and the concurrency target beside llama.cpp's deferred and active requests. It also shows lane usage and client p95 TTFT, shedding and failures by tier. It uses rolling 12-second windows for replay metrics. Completion metrics are tagged by the phase in which each request was dispatched, so late outcomes can appear after the next phase starts. The dashboard estimates p95 from histogram buckets and leaves it blank when no requests complete. Its shed and error fractions use terminal outcomes in the current window. Use the final JSON for exact run-wide and phase-wide counts and offered-request denominators.
+Start with completion and p95 time to first content by tier. The gateway timing panel separates admission wait from upstream first content. Compare active slots with the adaptive limit to see work drain after a reduction. Dashboard replay metrics use rolling 12-second windows, and late outcomes keep their original arrival phase. The dashboard estimates p95 from histogram buckets. Its live fractions use terminal outcomes. Use the final JSON for exact counts and offered-request denominators.
 
 Metrics mode leaves five seconds before the first request and after the last outcome so Prometheus can collect the initial and final counters. For a fresh run, zoom Grafana to the minutes around the replay. `docker compose down` stops monitoring and preserves its local volumes.
 
