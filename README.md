@@ -27,6 +27,10 @@ flowchart LR
 
 Run `python -m unittest discover -s tests -v` for the full checks. See the [measured runs](benchmarks/README.md) for results, hardware and reproduction steps.
 
+## What the benchmark showed
+
+On a two-slot llama.cpp CPU run, the direct path timed out on all 76 requests at the higher offered rate. The priority gateway shed 67 and completed nine, including two of four paid requests. FIFO completed zero of the four paid requests. The reservation preserved paid admission while both lanes continued to share model compute. Neither tested rate met the full latency and completion SLO. [Windows CPU pilot](benchmarks/README.md#windows-cpu-pilot-with-llamacpp)
+
 ## Run the baseline on Apple Silicon
 
 ```sh
@@ -60,7 +64,7 @@ curl -fsS http://127.0.0.1:8081/ready
 .venv/bin/python replay.py --url http://127.0.0.1:8081 --metrics-port 9109 --output runs/gateway.json
 ```
 
-The gateway forwards the chat response as it arrives. Each request has a deadline covering its body, queue wait and upstream response. A full queue or an expired queue wait returns `429` with `Retry-After: 1`. A request deadline before upstream headers returns `504`. If the deadline hits after headers, the stream closes without a completion marker and the replay counts it as incomplete. A client disconnect removes its queue entry or closes its upstream stream before handing off the slot.
+The gateway forwards the chat response as it arrives. Each request has a deadline covering its body, queue wait and upstream response. A full queue or an expired queue wait returns `429` with `Retry-After: 1` and the admission reason in `X-SpikeGuard-Shed`. Replay counts upstream rate limits as HTTP errors. A request deadline before upstream headers returns `504`. After headers, a deadline can end the stream before its completion marker. Replay records an incomplete stream or a timeout, depending on which deadline takes effect first. A client disconnect removes its queue entry or closes its upstream stream before handing off the slot.
 
 | Environment variable | Default | Controls |
 | --- | ---: | --- |
