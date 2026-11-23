@@ -1,6 +1,8 @@
+from argparse import Namespace
 import unittest
+from unittest.mock import patch
 
-from capacity import assess, summarize_rates, summarize_trial
+from capacity import assess, summarize_rates, summarize_trial, sweep
 
 
 def row(tier='free', offset=1, outcome='completed', ttft=0.25):
@@ -38,3 +40,19 @@ class CapacityTests(unittest.TestCase):
         result = summarize_rates(trials, (1, 2, 3), paid_rate=0.5)
         self.assertEqual(result['highest_passing_rate']['total_rate_rps'], 1.5)
         self.assertEqual([point['all_repeats_pass'] for point in result['rates']], [True, False, False])
+
+
+class SweepTests(unittest.IsolatedAsyncioTestCase):
+    async def test_sweep_rotates_targets_and_pairs_seeds(self):
+        args = Namespace(rates=(1,), repeats=2, seed=42, timeout=2, cooldown=0,
+                         warmup=0, duration=2, paid_rate=0, min_samples=1, include_requests=False)
+        targets = {'direct': 'http://localhost:8080', 'gateway': 'http://localhost:8081'}
+        with patch('capacity.replay', return_value=[row()]) as replay, patch('capacity.print', create=True):
+            result = await sweep(args, targets, tickets=[])
+        order = [(call.args[0].url, call.args[0].seed) for call in replay.await_args_list]
+        self.assertEqual(order, [
+            (targets['direct'], 42), (targets['gateway'], 42),
+            (targets['gateway'], 43), (targets['direct'], 43),
+        ])
+        self.assertEqual([trial['execution_order'] for trial in result['direct']['trials']], [1, 4])
+        self.assertEqual([trial['execution_order'] for trial in result['gateway']['trials']], [2, 3])

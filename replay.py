@@ -2,20 +2,34 @@
 import argparse
 import asyncio
 from collections import Counter
+import hashlib
 import heapq
 import json
 import math
 from pathlib import Path
+import platform
 import random
 import statistics
 import time
 
 import httpx
 
-from gateway.admission import TIER_HEADER, TIERS
+from gateway.admission import SHED_HEADER, SHED_REASONS, TIER_HEADER, TIERS
+from gateway.sse import ChatStream, ChatStreamError, DONE, FIRST_CONTENT, SSELimitError
 from replay_metrics import ReplayMetrics
 
 PHASES = ('baseline', 'spike', 'recovery')
+MAX_LEGACY_SHED_BODY_BYTES = 4096
+
+
+def measurement_metadata(tickets):
+    workload = json.dumps(tickets, sort_keys=True, separators=(',', ':'), ensure_ascii=False)
+    return dict(
+        ticket_count=len(tickets),
+        tickets_sha256=hashlib.sha256(workload.encode('utf-8')).hexdigest(),
+        client=dict(python=platform.python_version(), httpx=httpx.__version__,
+                    system=platform.system(), machine=platform.machine()),
+    )
 
 
 def is_loopback_endpoint(value):
@@ -51,9 +65,13 @@ async def request(client, target, task, origin, timeout, tier='free'):
     phase, offset, ticket = task
     loop = asyncio.get_running_loop()
     started = loop.time()
+    scheduled_at = origin + offset
+    deadline = scheduled_at + timeout
     result = dict(phase=phase, tier=tier, scheduled_s=offset, input_chars=len(ticket['text']),
-                  max_tokens=ticket['max_tokens'], dispatch_lag_s=started-origin-offset,
+                  max_tokens=ticket['max_tokens'], dispatch_lag_s=max(0, started - scheduled_at),
                   ttft_s=None, status=None, outcome='incomplete')
+    if started >= deadline:
+        return dict(result, outcome='timeout', elapsed_s=0)
     payload = {
         'model': 'spikeguard', 'stream': True, 'temperature': 0,
         'max_tokens': ticket['max_tokens'],
@@ -63,36 +81,76 @@ async def request(client, target, task, origin, timeout, tier='free'):
         ],
     }
     try:
-        async with asyncio.timeout_at(origin + offset + timeout):
+        async with asyncio.timeout_at(deadline):
             headers = {TIER_HEADER: tier} if tier == 'paid' else None
             async with client.stream('POST', target, json=payload, headers=headers) as response:
                 result['status'] = response.status_code
                 if response.status_code == 429:
-                    result['outcome'] = 'shed' if 'retry-after' in response.headers else 'http_error'
-                    result['retry_after'] = response.headers.get('retry-after')
+                    responded_at = loop.time()
+                    result.update(outcome='http_error', retry_after=response.headers.get('retry-after'))
+                    reason = await shed_reason(response)
+                    if reason is not None:
+                        result.update(outcome='shed', shed_reason=reason, elapsed_s=responded_at - started)
                 elif not response.is_success:
                     result['outcome'] = 'http_error'
                 else:
-                    async for line in response.aiter_lines():
-                        if not line.startswith('data:'):
-                            continue
-                        data = line[5:].strip()
-                        if data == '[DONE]':
-                            if result['ttft_s'] is not None:
-                                result['outcome'] = 'completed'
-                            break
-                        for choice in json.loads(data).get('choices', []):
-                            content = choice.get('delta', {}).get('content')
-                            if isinstance(content, str) and content and result['ttft_s'] is None:
-                                result['ttft_s'] = loop.time() - started
+                    await read_events(response, result, started, deadline)
     except TimeoutError:
-        result['outcome'] = 'timeout'
+        if result['outcome'] == 'incomplete':
+            result['outcome'] = 'timeout'
     except httpx.HTTPError:
-        result['outcome'] = 'transport_error'
-    except (ValueError, TypeError, AttributeError, RecursionError):
+        if result['outcome'] == 'incomplete':
+            result['outcome'] = 'transport_error'
+    except (ChatStreamError, SSELimitError):
         result['outcome'] = 'protocol_error'
-    result['elapsed_s'] = loop.time() - started
+    result.setdefault('elapsed_s', loop.time() - started)
     return result
+
+
+async def shed_reason(response):
+    if not response.headers.get('retry-after'):
+        return None
+    reason = response.headers.get(SHED_HEADER)
+    if reason is not None:
+        return reason if reason in SHED_REASONS else None
+
+    # Earlier SpikeGuard releases identify admission rejections in a small JSON body.
+    content_type = response.headers.get('content-type', '').split(';', 1)[0].strip().lower()
+    if content_type != 'application/json':
+        return None
+    body = bytearray()
+    async for chunk in response.aiter_bytes():
+        if len(body) + len(chunk) > MAX_LEGACY_SHED_BODY_BYTES:
+            return None
+        body.extend(chunk)
+    try:
+        reason = json.loads(body).get('error', {}).get('code')
+    except (ValueError, AttributeError, RecursionError):
+        return None
+    return reason if reason in SHED_REASONS else None
+
+
+async def read_events(response, result, started, deadline):
+    loop = asyncio.get_running_loop()
+    stream = ChatStream()
+    async for chunk in response.aiter_bytes():
+        for marker in stream.feed(chunk):
+            if marker == FIRST_CONTENT:
+                result['ttft_s'] = loop.time() - started
+            elif marker == DONE:
+                if result['ttft_s'] is not None:
+                    finished = loop.time()
+                    if finished >= deadline:
+                        raise TimeoutError
+                    result.update(outcome='completed', elapsed_s=finished - started)
+                return
+
+
+def p95(values):
+    values = sorted(values)
+    if values:
+        return values[math.ceil(0.95 * len(values)) - 1]
+    return None
 
 
 def summarize(rows, durations, *, phases=PHASES):
@@ -100,18 +158,26 @@ def summarize(rows, durations, *, phases=PHASES):
     for phase, duration in zip(phases, durations, strict=True):
         samples = [row for row in rows if row['phase'] == phase]
         outcomes = Counter(row['outcome'] for row in samples)
-        latencies = sorted(row['ttft_s'] for row in samples if row['outcome'] == 'completed')
+        latencies = [row['ttft_s'] for row in samples if row['outcome'] == 'completed']
         offered = len(samples)
         completed = len(latencies)
         shed = outcomes['shed']
         summaries[phase] = dict(
             offered=offered, outcomes=dict(outcomes),
+            offered_per_second=offered / duration,
             completion_fraction=completed / offered if offered else None,
             completed_per_offered_second=completed / duration,
             shed_fraction=shed / offered if offered else None,
             error_fraction=(offered - completed - shed) / offered if offered else None,
             median_ttft_s=statistics.median(latencies) if latencies else None,
-            p95_ttft_s=latencies[math.ceil(0.95 * completed) - 1] if latencies else None,
+            p95_ttft_s=p95(latencies),
+            p95_dispatch_lag_s=p95(row['dispatch_lag_s'] for row in samples if 'dispatch_lag_s' in row),
+            p95_completion_latency_s=p95(
+                row['elapsed_s'] for row in samples if row['outcome'] == 'completed' and 'elapsed_s' in row
+            ),
+            p95_shed_latency_s=p95(
+                row['elapsed_s'] for row in samples if row['outcome'] == 'shed' and 'elapsed_s' in row
+            ),
         )
     return summaries
 
@@ -194,7 +260,8 @@ def main():
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(dict(
         url=args.url, rates=args.rates, paid_rates=args.paid_rates, durations=args.durations, seed=args.seed,
-        timeout_s=args.timeout, summary=summary, tier_summary=tier_summary, requests=rows,
+        timeout_s=args.timeout, measurement=measurement_metadata(tickets),
+        summary=summary, tier_summary=tier_summary, requests=rows,
     ), indent=2) + '\n', encoding='utf-8')
     print(json.dumps(summary, indent=2))
 

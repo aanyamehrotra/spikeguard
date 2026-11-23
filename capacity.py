@@ -5,7 +5,7 @@ import json
 import math
 from pathlib import Path
 
-from replay import is_loopback_endpoint, replay, summarize, summarize_by_tier
+from replay import is_loopback_endpoint, measurement_metadata, replay, summarize, summarize_by_tier
 
 PHASES = ('steady',)
 SLO = dict(max_p95_ttft_s=2, max_error_fraction=0.01, min_completion_fraction=0.99)
@@ -57,22 +57,25 @@ def summarize_rates(trials, rates, paid_rate):
 
 async def sweep(args, targets, tickets):
     results = {label: dict(url=url, trials=[]) for label, url in targets.items()}
+    target_order = tuple(targets.items())
     duration = args.warmup + args.duration
-    first = True
-    for rate in args.rates:
+    execution_order = 0
+    for point, rate in enumerate(args.rates):
         for repeat in range(args.repeats):
             seed = args.seed + repeat
-            for label, url in targets.items():
-                if not first:
+            # Rotate the first target so the same path does not always inherit a warmed backend.
+            first_target = (point + repeat) % len(target_order)
+            for label, url in target_order[first_target:] + target_order[:first_target]:
+                if execution_order:
                     await asyncio.sleep(args.cooldown)
-                first = False
+                execution_order += 1
                 traffic = argparse.Namespace(
                     url=url, rates=(rate,), paid_rates=(args.paid_rate,), durations=(duration,),
                     timeout=args.timeout, seed=seed,
                 )
                 rows = await replay(traffic, tickets, phases=PHASES)
                 trial = summarize_trial(rows, args.warmup, args.duration, args.paid_rate, args.min_samples)
-                trial.update(free_rate_rps=rate, repeat=repeat + 1, seed=seed)
+                trial.update(free_rate_rps=rate, repeat=repeat + 1, seed=seed, execution_order=execution_order)
                 if args.include_requests:
                     trial['requests'] = rows
                 results[label]['trials'].append(trial)
@@ -121,7 +124,8 @@ def main():
     report = dict(
         slo=SLO, free_rates_rps=args.rates, paid_rate_rps=args.paid_rate, warmup_s=args.warmup,
         measured_s=args.duration, cooldown_s=args.cooldown, timeout_s=args.timeout, repeats=args.repeats,
-        min_samples=args.min_samples, seed=args.seed, environment=args.environment, targets=results,
+        min_samples=args.min_samples, seed=args.seed, environment=args.environment,
+        measurement=measurement_metadata(tickets), targets=results,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')

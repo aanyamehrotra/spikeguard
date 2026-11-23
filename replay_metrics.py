@@ -28,7 +28,9 @@ class ReplayMetrics:
                     self.tier_finished.labels(phase, tier, outcome)
 
     def _metrics(self, prefix, labels):
-        offered = Counter(f'{prefix}_offered', 'Requests dispatched by the replay client.', labels, registry=self.registry)
+        offered = Counter(
+            f'{prefix}_offered', 'Scheduled arrivals attempted by the replay client.', labels, registry=self.registry,
+        )
         finished = Counter(
             f'{prefix}_finished', 'Terminal outcomes grouped by arrival phase.', (*labels, 'outcome'), registry=self.registry,
         )
