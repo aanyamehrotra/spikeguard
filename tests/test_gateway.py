@@ -4,7 +4,7 @@ import unittest
 
 import httpx
 
-from gateway.admission import Admission
+from gateway.admission import Admission, TIER_HEADER
 from gateway.app import CHAT, MAX_BODY_BYTES, Settings, create_app
 
 CHUNK = b'data: {"choices":[{"delta":{"content":"summary"}}]}\n\n'
@@ -30,15 +30,18 @@ class HeldStream(httpx.AsyncByteStream):
 class Exchange:
     """A downstream HTTP connection whose disconnect can be triggered explicitly."""
 
-    def __init__(self, app, identifier):
+    def __init__(self, app, identifier, tier):
         self.events = asyncio.Queue()
         self.events.put_nowait({'type': 'http.request', 'body': identifier, 'more_body': False})
         self.messages = []
         self.first_chunk = asyncio.Event()
+        headers = [(b'content-type', b'application/json')]
+        if tier is not None:
+            headers.append((TIER_HEADER.lower().encode(), tier.encode()))
         self.task = asyncio.create_task(app({
             'type': 'http', 'asgi': {'version': '3.0', 'spec_version': '2.4'},
             'method': 'POST', 'path': CHAT, 'root_path': '', 'scheme': 'http',
-            'query_string': b'', 'headers': [(b'content-type', b'application/json')],
+            'query_string': b'', 'headers': headers,
         }, self.events.get, self.send))
 
     async def send(self, message):
@@ -88,17 +91,17 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
             exchange.disconnect()
         await asyncio.gather(*(exchange.task for exchange in self.exchanges), return_exceptions=True)
 
-    async def setup_gateway(self, upstream, **settings):
+    async def setup_gateway(self, upstream, concurrency=1, **settings):
         self.app = create_app(
-            Settings(concurrency=1, **settings), transport=httpx.MockTransport(upstream),
+            Settings(concurrency=concurrency, **settings), transport=httpx.MockTransport(upstream),
         )
         await self.stack.enter_async_context(self.app.router.lifespan_context(self.app))
         self.client = await self.stack.enter_async_context(httpx.AsyncClient(
             transport=httpx.ASGITransport(app=self.app), base_url='http://gateway',
         ))
 
-    def exchange(self, identifier=b'{}'):
-        exchange = Exchange(self.app, identifier)
+    def exchange(self, identifier=b'{}', tier=None):
+        exchange = Exchange(self.app, identifier, tier)
         self.exchanges.append(exchange)
         return exchange
 
@@ -162,6 +165,50 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         held.finish.set()
         await asyncio.wait_for(active.response(), 2)
         await self.assert_idle()
+
+    async def test_paid_lane_remains_available_through_free_overload(self):
+        held = {b'free': HeldStream(), b'paid': HeldStream()}
+        order = []
+
+        async def upstream(request):
+            self.assertNotIn(TIER_HEADER, request.headers)
+            identifier = await request.aread()
+            order.append(identifier)
+            if identifier in held:
+                return httpx.Response(200, stream=held[identifier])
+            return httpx.Response(200, content=CHUNK + DONE)
+
+        await self.setup_gateway(
+            upstream, concurrency=2, queue_limit=2, queue_wait=3, paid_slots=1, paid_queue_slots=1,
+        )
+        free = self.exchange(b'free')
+        await asyncio.wait_for(free.first_chunk.wait(), 2)
+        free_waiter = self.exchange(b'free-waiter')
+        await self.wait_for_depth(1)
+        rejected = await asyncio.wait_for(self.exchange(b'free-rejected').response(), 1)
+        self.assertEqual((rejected.status_code, rejected.headers['retry-after']), (429, '1'))
+        paid = self.exchange(b'paid', 'paid')
+        await asyncio.wait_for(paid.first_chunk.wait(), 2)
+        paid_waiter = self.exchange(b'paid-waiter', 'paid')
+        await self.wait_for_depth(2)
+        metrics = (await self.client.get('/metrics')).text
+        self.assertIn('spikeguard_gateway_tier_queue_depth{tier="paid"} 1.0', metrics)
+        self.assertIn('spikeguard_gateway_tier_shed_total{reason="queue_full",tier="free"} 1.0', metrics)
+        held[b'free'].finish.set()
+        for exchange in (free, paid_waiter, free_waiter):
+            self.assertEqual((await asyncio.wait_for(exchange.response(), 2)).status_code, 200)
+        held[b'paid'].finish.set()
+        await asyncio.wait_for(paid.response(), 2)
+        self.assertEqual(order, [b'free', b'paid', b'paid-waiter', b'free-waiter'])
+        await self.assert_idle()
+
+    async def test_invalid_tier_is_rejected_before_forwarding(self):
+        async def upstream(_):
+            self.fail('invalid tier reached the upstream')
+
+        await self.setup_gateway(upstream)
+        response = await asyncio.wait_for(self.exchange(tier='invalid').response(), 1)
+        self.assertEqual((response.status_code, response.json()['error']['code']), (400, 'invalid_tier'))
 
     async def test_disconnect_removes_waiter_and_closes_active_upstream(self):
         held = HeldStream()

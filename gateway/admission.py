@@ -1,7 +1,10 @@
-"""FIFO admission for a single asyncio worker."""
+"""Bounded admission for a single asyncio worker."""
 import asyncio
 from collections import deque
 from contextlib import asynccontextmanager
+
+TIERS = ('free', 'paid')
+TIER_HEADER = 'X-SpikeGuard-Tier'
 
 
 class Shed(Exception):
@@ -9,26 +12,49 @@ class Shed(Exception):
 
 
 class Admission:
-    def __init__(self, concurrency: int, queue_limit: int, queue_wait: float):
+    def __init__(
+        self, concurrency: int, queue_limit: int, queue_wait: float,
+        paid_slots: int = 0, paid_queue_slots: int = 0,
+    ):
         self.concurrency = concurrency
         self.queue_limit = queue_limit
         self.queue_wait = queue_wait
-        self.active = 0
-        self._waiting: deque[asyncio.Event] = deque()
+        self.paid_slots = paid_slots
+        self.paid_queue_slots = paid_queue_slots
+        self._active = dict.fromkeys(TIERS, 0)
+        self._waiting = {tier: deque() for tier in TIERS}
+
+    @property
+    def active(self) -> int:
+        return sum(self._active.values())
 
     @property
     def depth(self) -> int:
-        return len(self._waiting)
+        return sum(len(queue) for queue in self._waiting.values())
 
-    async def _acquire(self) -> None:
-        if self.active < self.concurrency:
-            self.active += 1
+    def active_for(self, tier: str) -> int:
+        return self._active[tier]
+
+    def depth_for(self, tier: str) -> int:
+        return len(self._waiting[tier])
+
+    def _can_start(self, tier: str) -> bool:
+        return self.active < self.concurrency and (
+            tier == 'paid' or self._active['free'] < self.concurrency - self.paid_slots
+        )
+
+    async def _acquire(self, tier: str) -> None:
+        if self._can_start(tier):
+            self._active[tier] += 1
             return
-        if self.depth >= self.queue_limit:
+        queue = self._waiting[tier]
+        if self.depth >= self.queue_limit or (
+            tier == 'free' and len(queue) >= self.queue_limit - self.paid_queue_slots
+        ):
             raise Shed('queue_full')
 
         turn = asyncio.Event()
-        self._waiting.append(turn)
+        queue.append(turn)
         try:
             try:
                 async with asyncio.timeout(self.queue_wait):
@@ -38,22 +64,27 @@ class Admission:
         except BaseException:
             # A release may already have transferred the slot before cancellation.
             if turn.is_set():
-                self._release()
+                self._release(tier)
             else:
-                self._waiting.remove(turn)
+                queue.remove(turn)
             raise
 
-    def _release(self) -> None:
-        if self._waiting:
-            # Transfer the slot directly so new arrivals cannot bypass the queue.
-            self._waiting.popleft().set()
-        else:
-            self.active -= 1
+    def _dispatch(self) -> None:
+        for tier in ('paid', 'free'):
+            queue = self._waiting[tier]
+            while queue and self._can_start(tier):
+                # Reserve the slot before waking the waiter.
+                self._active[tier] += 1
+                queue.popleft().set()
+
+    def _release(self, tier: str) -> None:
+        self._active[tier] -= 1
+        self._dispatch()
 
     @asynccontextmanager
-    async def slot(self):
-        await self._acquire()
+    async def slot(self, tier: str = 'free'):
+        await self._acquire(tier)
         try:
             yield
         finally:
-            self._release()
+            self._release(tier)

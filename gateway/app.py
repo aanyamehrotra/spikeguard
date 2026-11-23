@@ -12,7 +12,7 @@ import httpx
 from prometheus_client import CollectorRegistry, Counter, Gauge, generate_latest, CONTENT_TYPE_LATEST
 from starlette.requests import ClientDisconnect
 
-from .admission import Admission, Shed
+from .admission import Admission, Shed, TIER_HEADER, TIERS
 
 CHAT = '/v1/chat/completions'
 MAX_BODY_BYTES = 256 * 1024
@@ -25,12 +25,22 @@ class Settings:
     queue_limit: int = 2
     queue_wait: float = 0.25
     deadline: float = 25.0
+    paid_slots: int = 0
+    paid_queue_slots: int = 0
 
     def __post_init__(self):
         if self.concurrency < 1 or self.queue_limit < 0:
             raise ValueError('concurrency must be positive and queue limit must be nonnegative')
         if not all(math.isfinite(value) and value > 0 for value in (self.queue_wait, self.deadline)):
             raise ValueError('queue wait and request deadline must be positive and finite')
+        if not 0 <= self.paid_slots < self.concurrency:
+            raise ValueError('paid slots must leave at least one free upstream slot')
+        if not 0 <= self.paid_queue_slots <= self.queue_limit:
+            raise ValueError('paid queue slots must fit within the queue limit')
+
+    @property
+    def priority_enabled(self):
+        return bool(self.paid_slots or self.paid_queue_slots)
 
     @classmethod
     def from_env(cls):
@@ -40,6 +50,8 @@ class Settings:
             queue_limit=int(os.getenv('SPIKEGUARD_QUEUE_LIMIT', cls.queue_limit)),
             queue_wait=float(os.getenv('SPIKEGUARD_QUEUE_WAIT_S', cls.queue_wait)),
             deadline=float(os.getenv('SPIKEGUARD_DEADLINE_S', cls.deadline)),
+            paid_slots=int(os.getenv('SPIKEGUARD_PAID_SLOTS', cls.paid_slots)),
+            paid_queue_slots=int(os.getenv('SPIKEGUARD_PAID_QUEUE_SLOTS', cls.paid_queue_slots)),
         )
 
 
@@ -56,13 +68,15 @@ async def watch_disconnect(receive, cancel_scope):
 class ProxyResponse(Response):
     """Keep the deadline, disconnect monitor and upstream lease alive through the body."""
 
-    def __init__(self, client, admission, shed_counter, payload, deadline):
+    def __init__(self, client, admission, shed_counter, tier_shed, payload, deadline, tier):
         super().__init__()
         self.client = client
         self.admission = admission
         self.shed_counter = shed_counter
+        self.tier_shed = tier_shed
         self.payload = payload
         self.deadline = deadline
+        self.tier = tier
 
     async def __call__(self, scope, receive, send):
         async with anyio.create_task_group() as tasks:
@@ -79,7 +93,7 @@ class ProxyResponse(Response):
         headers_sent = False
         try:
             async with asyncio.timeout_at(self.deadline):
-                async with self.admission.slot():
+                async with self.admission.slot(self.tier):
                     upstream = await self.client.send(self.client.build_request(
                         'POST', CHAT, content=self.payload,
                         headers={'content-type': 'application/json', 'accept-encoding': 'identity'},
@@ -105,6 +119,7 @@ class ProxyResponse(Response):
         except Shed as exc:
             reason = str(exc)
             self.shed_counter.labels(reason).inc()
+            self.tier_shed.labels(self.tier, reason).inc()
             await error(429, reason, {'Retry-After': '1'})(scope, receive, send)
             return
         except (TimeoutError, httpx.HTTPError) as exc:
@@ -121,7 +136,10 @@ class ProxyResponse(Response):
 
 def create_app(settings=None, *, transport=None):
     settings = settings or Settings.from_env()
-    admission = Admission(settings.concurrency, settings.queue_limit, settings.queue_wait)
+    admission = Admission(
+        settings.concurrency, settings.queue_limit, settings.queue_wait,
+        settings.paid_slots, settings.paid_queue_slots,
+    )
     registry = CollectorRegistry()
     Gauge('spikeguard_gateway_active', 'Requests holding an upstream slot.', registry=registry).set_function(
         lambda: admission.active,
@@ -130,8 +148,18 @@ def create_app(settings=None, *, transport=None):
         lambda: admission.depth,
     )
     shed_counter = Counter('spikeguard_gateway_shed', 'Requests rejected by admission.', ('reason',), registry=registry)
+    tier_active = Gauge('spikeguard_gateway_tier_active', 'Upstream slots by tier.', ('tier',), registry=registry)
+    tier_depth = Gauge('spikeguard_gateway_tier_queue_depth', 'Waiting requests by tier.', ('tier',), registry=registry)
+    tier_shed = Counter(
+        'spikeguard_gateway_tier_shed', 'Admission rejections by tier.', ('tier', 'reason'), registry=registry,
+    )
+    for tier in TIERS:
+        tier_active.labels(tier).set_function(lambda tier=tier: admission.active_for(tier))
+        tier_depth.labels(tier).set_function(lambda tier=tier: admission.depth_for(tier))
     for reason in ('queue_full', 'queue_wait_expired'):
         shed_counter.labels(reason)
+        for tier in TIERS:
+            tier_shed.labels(tier, reason)
 
     @asynccontextmanager
     async def lifespan(app):
@@ -163,6 +191,11 @@ def create_app(settings=None, *, transport=None):
 
     @app.post(CHAT)
     async def chat(request: Request):
+        tier = request.headers.get(TIER_HEADER, 'free').strip().lower()
+        if tier not in TIERS:
+            return error(400, 'invalid_tier')
+        if not settings.priority_enabled:
+            tier = 'free'
         deadline = asyncio.get_running_loop().time() + settings.deadline
         body = bytearray()
         try:
@@ -175,7 +208,7 @@ def create_app(settings=None, *, transport=None):
             return error(504, 'deadline_exceeded')
         except ClientDisconnect:
             return Response(status_code=499)
-        return ProxyResponse(request.app.state.client, admission, shed_counter, bytes(body), deadline)
+        return ProxyResponse(request.app.state.client, admission, shed_counter, tier_shed, bytes(body), deadline, tier)
 
     return app
 
