@@ -1,9 +1,9 @@
 {
   "uid": "spikeguard-overview",
   "title": "SpikeGuard \u00b7 Replay overview",
-  "description": "Native and gateway queues, adaptive concurrency, and client streaming outcomes by phase and tier.",
+  "description": "Replay completion and first-token latency by tier, gateway capacity and native model saturation.",
   "schemaVersion": 39,
-  "version": 3,
+  "version": 4,
   "editable": false,
   "tags": [
     "spikeguard"
@@ -23,54 +23,33 @@
   "panels": [
     {
       "id": 1,
-      "title": "Queues and active requests",
-      "description": "Gateway waiting and active requests, the current concurrency target, and native llama.cpp requests.",
+      "title": "Native model saturation",
+      "description": "Requests processing and waiting in llama.cpp. Available when the native model exports metrics.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
         "uid": "spikeguard-prometheus"
       },
       "gridPos": {
-        "x": 0,
-        "y": 0,
+        "x": 12,
+        "y": 16,
         "w": 12,
         "h": 8
       },
       "targets": [
         {
           "expr": "llamacpp:requests_deferred{job=\"llama\"}",
-          "legendFormat": "Deferred queue",
+          "legendFormat": "Deferred requests",
           "range": true,
           "instant": false,
           "refId": "A"
         },
         {
           "expr": "llamacpp:requests_processing{job=\"llama\"}",
-          "legendFormat": "Active slots",
+          "legendFormat": "Processing requests",
           "range": true,
           "instant": false,
           "refId": "B"
-        },
-        {
-          "expr": "spikeguard_gateway_queue_depth{job=\"gateway\"}",
-          "legendFormat": "Gateway waiting",
-          "range": true,
-          "instant": false,
-          "refId": "C"
-        },
-        {
-          "expr": "spikeguard_gateway_active{job=\"gateway\"}",
-          "legendFormat": "Gateway active",
-          "range": true,
-          "instant": false,
-          "refId": "D"
-        },
-        {
-          "expr": "spikeguard_gateway_concurrency_limit{job=\"gateway\"}",
-          "legendFormat": "Gateway concurrency target",
-          "range": true,
-          "instant": false,
-          "refId": "E"
         }
       ],
       "fieldConfig": {
@@ -106,8 +85,8 @@
         "uid": "spikeguard-prometheus"
       },
       "gridPos": {
-        "x": 12,
-        "y": 0,
+        "x": 0,
+        "y": 32,
         "w": 12,
         "h": 8
       },
@@ -215,8 +194,8 @@
         "uid": "spikeguard-prometheus"
       },
       "gridPos": {
-        "x": 0,
-        "y": 8,
+        "x": 12,
+        "y": 32,
         "w": 12,
         "h": 8
       },
@@ -269,9 +248,9 @@
         "uid": "spikeguard-prometheus"
       },
       "gridPos": {
-        "x": 12,
-        "y": 8,
-        "w": 12,
+        "x": 0,
+        "y": 48,
+        "w": 24,
         "h": 8
       },
       "targets": [
@@ -317,7 +296,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 16,
+        "y": 40,
         "w": 12,
         "h": 8
       },
@@ -411,7 +390,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 16,
+        "y": 40,
         "w": 12,
         "h": 8
       },
@@ -505,7 +484,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 24,
+        "y": 16,
         "w": 12,
         "h": 8
       },
@@ -558,8 +537,8 @@
         "uid": "spikeguard-prometheus"
       },
       "gridPos": {
-        "x": 12,
-        "y": 24,
+        "x": 0,
+        "y": 0,
         "w": 12,
         "h": 8
       },
@@ -622,7 +601,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 32,
+        "y": 24,
         "w": 12,
         "h": 8
       },
@@ -670,7 +649,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 32,
+        "y": 24,
         "w": 12,
         "h": 8
       },
@@ -692,6 +671,163 @@
             "fillOpacity": 10
           },
           "max": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "Completion fraction by tier",
+      "description": "Successful completions as a share of terminal outcomes for each arrival phase and tier over 12 seconds. Use the replay JSON to check the SLO against all offered requests.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "spikeguard-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "sum by (phase, tier) (rate(spikeguard_replay_tier_finished_total{outcome=\"completed\"}[12s])) / (sum by (phase, tier) (rate(spikeguard_replay_tier_finished_total[12s])) > 0)",
+          "legendFormat": "{{phase}} {{tier}}",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          },
+          "max": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "title": "Gateway concurrency and active slots",
+      "description": "Current admission target against active upstream requests. When the target falls, accepted work drains without being interrupted, and paid slots stay reserved.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "spikeguard-prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "spikeguard_gateway_active{job=\"gateway\"}",
+          "legendFormat": "Active upstream slots",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        },
+        {
+          "expr": "spikeguard_gateway_concurrency_limit{job=\"gateway\"}",
+          "legendFormat": "Admission target",
+          "range": true,
+          "instant": false,
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "lineInterpolation": "stepAfter"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 13,
+      "title": "Gateway p95 timing by tier",
+      "description": "Queue wait for admitted requests and time to first content from the upstream model. Each series estimates its own distribution over 12 seconds.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "spikeguard-prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (tier, le) (rate(spikeguard_gateway_queue_wait_seconds_bucket{job=\"gateway\"}[12s])))",
+          "legendFormat": "{{tier}} queue wait",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (tier, le) (rate(spikeguard_gateway_upstream_ttft_seconds_bucket{job=\"gateway\"}[12s])))",
+          "legendFormat": "{{tier}} upstream TTFT",
+          "range": true,
+          "instant": false,
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
         },
         "overrides": []
       },
