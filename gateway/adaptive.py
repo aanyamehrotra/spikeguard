@@ -1,11 +1,15 @@
 """Adjust the admission limit using upstream time to first content."""
-import json
-
-MAX_EVENT_LINE_BYTES = 256 * 1024
+ADJUSTMENT_REASONS = (
+    ('increase', 'healthy'),
+    ('decrease', 'slow_ttft'),
+    ('decrease', 'upstream_error'),
+    ('decrease', 'deadline'),
+    ('decrease', 'incomplete_stream'),
+)
 
 
 class AdaptiveConcurrency:
-    def __init__(self, admission, minimum, target, recovery_samples):
+    def __init__(self, admission, minimum, target, recovery_samples, on_adjustment=None):
         self.admission = admission
         self.minimum = minimum
         self.maximum = admission.concurrency
@@ -13,62 +17,40 @@ class AdaptiveConcurrency:
         self.recovery_samples = recovery_samples
         self.generation = 0
         self.healthy_streak = 0
+        self.on_adjustment = on_adjustment
 
-    def record(self, generation, saturated, ttft):
+    def feedback(self, saturated):
+        generation = self.generation
+        recorded = False
+
+        def observe(ttft, *, failure='upstream_error'):
+            nonlocal recorded
+            if not recorded:
+                recorded = True
+                self.record(generation, saturated, ttft, failure=failure)
+
+        return observe
+
+    def record(self, generation, saturated, ttft, *, failure='upstream_error'):
         if generation != self.generation:
             return
         limit = self.admission.concurrency
         if ttft is None or ttft >= self.target:
             self.healthy_streak = 0
             new_limit = max(self.minimum, limit // 2)
+            direction = 'decrease'
+            reason = failure if ttft is None else 'slow_ttft'
         elif saturated and limit < self.maximum:
             self.healthy_streak += 1
             if self.healthy_streak < self.recovery_samples:
                 return
             new_limit = limit + 1
+            direction, reason = 'increase', 'healthy'
         else:
             return
         if new_limit != limit:
             self.generation += 1
             self.healthy_streak = 0
             self.admission.resize(new_limit)
-
-
-class FirstContent:
-    """Probe OpenAI-style SSE data lines without changing forwarded bytes."""
-
-    def __init__(self):
-        self.pending = bytearray()
-        self.discard_line = False
-
-    def feed(self, chunk: bytes) -> bool:
-        parts = chunk.split(b'\n')
-        for part in parts[:-1]:
-            self._append(part)
-            if not self.discard_line and self._has_content(self.pending):
-                return True
-            self.pending.clear()
-            self.discard_line = False
-        self._append(parts[-1])
-        return False
-
-    def _append(self, part):
-        if len(self.pending) + len(part) > MAX_EVENT_LINE_BYTES:
-            self.pending.clear()
-            self.discard_line = True
-        if not self.discard_line:
-            self.pending.extend(part)
-
-    @staticmethod
-    def _has_content(line):
-        if not line.startswith(b'data:'):
-            return False
-        try:
-            data = json.loads(line[5:])
-            for choice in data.get('choices', []):
-                content = choice.get('delta', {}).get('content')
-                if isinstance(content, str) and content:
-                    return True
-        except (ValueError, TypeError, AttributeError, RecursionError):
-            pass
-        return False
+            if self.on_adjustment is not None:
+                self.on_adjustment(direction, reason)

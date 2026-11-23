@@ -9,14 +9,17 @@ import anyio
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 import httpx
-from prometheus_client import CollectorRegistry, Counter, Gauge, generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 from starlette.requests import ClientDisconnect
 
-from .adaptive import AdaptiveConcurrency, FirstContent
-from .admission import Admission, Shed, TIER_HEADER, TIERS
+from .adaptive import AdaptiveConcurrency
+from .admission import Admission, SHED_HEADER, Shed, TIER_HEADER, TIERS
+from .metrics import GatewayMetrics
+from .sse import ChatStream, ChatStreamError, FIRST_CONTENT, SSELimitError
 
 CHAT = '/v1/chat/completions'
 MAX_BODY_BYTES = 256 * 1024
+READY_TIMEOUT_S = 1.0
 
 
 @dataclass(frozen=True)
@@ -89,38 +92,47 @@ async def watch_disconnect(receive, cancel_scope):
 class ProxyResponse(Response):
     """Keep the deadline, disconnect monitor and upstream lease alive through the body."""
 
-    def __init__(self, client, admission, adaptive, shed_counter, tier_shed, payload, deadline, tier):
+    def __init__(self, client, admission, adaptive, metrics, payload, deadline, tier):
         super().__init__()
         self.client = client
         self.admission = admission
         self.adaptive = adaptive
-        self.shed_counter = shed_counter
-        self.tier_shed = tier_shed
+        self.metrics = metrics
         self.payload = payload
         self.deadline = deadline
         self.tier = tier
+        self.completed_stream = False
 
     async def __call__(self, scope, receive, send):
-        async with anyio.create_task_group() as tasks:
-            tasks.start_soon(watch_disconnect, receive, tasks.cancel_scope)
-            try:
-                await self.forward(scope, receive, send)
-            except OSError:
-                # ASGI servers may report a closed downstream from send().
-                pass
-            finally:
-                tasks.cancel_scope.cancel()
+        outcome = 'internal_error'
+        try:
+            async with anyio.create_task_group() as tasks:
+                tasks.start_soon(watch_disconnect, receive, tasks.cancel_scope)
+                try:
+                    outcome = await self.forward(scope, receive, send)
+                except OSError:
+                    # ASGI servers may report a closed downstream from send().
+                    outcome = 'disconnected'
+                except asyncio.CancelledError:
+                    outcome = 'disconnected'
+                    raise
+                finally:
+                    tasks.cancel_scope.cancel()
+        finally:
+            self.metrics.outcomes.labels(self.tier, 'completed' if self.completed_stream else outcome).inc()
 
     async def forward(self, scope, receive, send):
         headers_sent = False
+        loop = asyncio.get_running_loop()
+        queued_at = loop.time()
         try:
-            async with asyncio.timeout_at(self.deadline) as budget:
+            with anyio.fail_after(max(0, self.deadline - queued_at)) as budget:
                 async with self.admission.slot(self.tier):
-                    loop = asyncio.get_running_loop()
                     started = loop.time()
-                    probe = FirstContent() if self.adaptive else None
-                    generation = self.adaptive.generation if self.adaptive else 0
-                    saturated = self.adaptive is not None and self.admission.saturated(self.tier)
+                    self.metrics.queue_wait.labels(self.tier).observe(started - queued_at)
+                    if started >= self.deadline:
+                        raise TimeoutError
+                    feedback = self.adaptive.feedback(self.admission.saturated(self.tier)) if self.adaptive else None
                     upstream = None
                     try:
                         upstream = await self.client.send(self.client.build_request(
@@ -128,11 +140,12 @@ class ProxyResponse(Response):
                             headers={'content-type': 'application/json', 'accept-encoding': 'identity'},
                         ), stream=True)
                         content_type = upstream.headers.get('content-type', 'application/octet-stream')
-                        if probe is not None:
-                            if upstream.status_code == 429 or upstream.status_code >= 500:
-                                self.adaptive.record(generation, saturated, None)
-                            if not upstream.is_success or content_type.split(';', 1)[0].strip().lower() != 'text/event-stream':
-                                probe = None
+                        is_sse = content_type.split(';', 1)[0].strip().lower() == 'text/event-stream'
+                        observe_stream = is_sse and upstream.is_success
+                        if feedback is not None and (upstream.status_code == 429 or upstream.status_code >= 500):
+                            feedback(None)
+                        if not observe_stream:
+                            feedback = None
                         headers = [
                             (b'content-type', content_type.encode('latin-1')),
                             (b'cache-control', b'no-store'),
@@ -142,20 +155,14 @@ class ProxyResponse(Response):
                             'type': 'http.response.start', 'status': upstream.status_code,
                             'headers': headers,
                         })
-                        async for chunk in upstream.aiter_bytes():
-                            if probe is not None and probe.feed(chunk):
-                                self.adaptive.record(generation, saturated, loop.time() - started)
-                                probe = None
-                            await send({'type': 'http.response.body', 'body': chunk, 'more_body': True})
-                        if probe is not None:
-                            self.adaptive.record(generation, saturated, None)
+                        outcome = await self.relay_body(upstream, observe_stream, started, feedback, send)
                     except httpx.HTTPError:
-                        if probe is not None:
-                            self.adaptive.record(generation, saturated, None)
+                        if feedback is not None:
+                            feedback(None)
                         raise
                     except asyncio.CancelledError:
-                        if probe is not None and budget.expired():
-                            self.adaptive.record(generation, saturated, None)
+                        if feedback is not None and budget.cancel_called:
+                            feedback(None, failure='deadline')
                         raise
                     finally:
                         # Finish closing the upstream before returning the slot.
@@ -164,20 +171,49 @@ class ProxyResponse(Response):
                                 await upstream.aclose()
         except Shed as exc:
             reason = str(exc)
-            self.shed_counter.labels(reason).inc()
-            self.tier_shed.labels(self.tier, reason).inc()
-            await error(429, reason, {'Retry-After': '1'})(scope, receive, send)
-            return
+            self.metrics.record_shed(self.tier, reason)
+            await error(429, reason, {'Retry-After': '1', SHED_HEADER: reason})(scope, receive, send)
+            return 'shed'
         except (TimeoutError, httpx.HTTPError) as exc:
+            timed_out = isinstance(exc, TimeoutError)
+            outcome = 'deadline_exceeded' if timed_out else 'upstream_transport_error'
             if not headers_sent:
-                if isinstance(exc, TimeoutError):
+                if timed_out:
                     response = error(504, 'deadline_exceeded')
                 else:
                     response = error(502, 'upstream_unavailable')
                 await response(scope, receive, send)
-                return
+                return outcome
             # The status is committed. End the partial stream without synthesizing [DONE].
         await send({'type': 'http.response.body', 'body': b'', 'more_body': False})
+        return outcome
+
+    async def relay_body(self, upstream, observe_stream, started, feedback, send):
+        loop = asyncio.get_running_loop()
+        stream = ChatStream() if observe_stream else None
+        outcome = 'completed' if upstream.is_success else 'upstream_http_error'
+        async for chunk in upstream.aiter_bytes():
+            if stream is not None:
+                try:
+                    for marker in stream.feed(chunk):
+                        if marker == FIRST_CONTENT:
+                            ttft = loop.time() - started
+                            self.metrics.upstream_ttft.labels(self.tier).observe(ttft)
+                            if feedback is not None:
+                                feedback(ttft)
+                except (ChatStreamError, SSELimitError):
+                    outcome = 'protocol_error'
+                    stream = None
+                    if feedback is not None:
+                        feedback(None, failure='incomplete_stream')
+            await send({'type': 'http.response.body', 'body': chunk, 'more_body': True})
+            if stream is not None and stream.done:
+                self.completed_stream = stream.has_content
+        if stream is not None and not self.completed_stream:
+            if feedback is not None:
+                feedback(None, failure='incomplete_stream')
+            return 'incomplete_stream'
+        return outcome
 
 
 def create_app(settings=None, *, transport=None):
@@ -186,39 +222,22 @@ def create_app(settings=None, *, transport=None):
         settings.concurrency, settings.queue_limit, settings.queue_wait,
         settings.paid_slots, settings.paid_queue_slots,
     )
+    telemetry = GatewayMetrics(admission)
     adaptive = None
     if settings.adaptive:
         adaptive = AdaptiveConcurrency(
             admission, settings.adaptive_floor, settings.adaptive_target, settings.adaptive_recovery_samples,
+            on_adjustment=telemetry.record_adjustment,
         )
-    registry = CollectorRegistry()
-    Gauge('spikeguard_gateway_concurrency_limit', 'Current upstream concurrency limit.', registry=registry).set_function(
-        lambda: admission.concurrency,
-    )
-    Gauge('spikeguard_gateway_active', 'Requests holding an upstream slot.', registry=registry).set_function(
-        lambda: admission.active,
-    )
-    Gauge('spikeguard_gateway_queue_depth', 'Requests waiting for a slot.', registry=registry).set_function(
-        lambda: admission.depth,
-    )
-    shed_counter = Counter('spikeguard_gateway_shed', 'Requests rejected by admission.', ('reason',), registry=registry)
-    tier_active = Gauge('spikeguard_gateway_tier_active', 'Upstream slots by tier.', ('tier',), registry=registry)
-    tier_depth = Gauge('spikeguard_gateway_tier_queue_depth', 'Waiting requests by tier.', ('tier',), registry=registry)
-    tier_shed = Counter(
-        'spikeguard_gateway_tier_shed', 'Admission rejections by tier.', ('tier', 'reason'), registry=registry,
-    )
-    for tier in TIERS:
-        tier_active.labels(tier).set_function(lambda tier=tier: admission.active_for(tier))
-        tier_depth.labels(tier).set_function(lambda tier=tier: admission.depth_for(tier))
-    for reason in ('queue_full', 'queue_wait_expired'):
-        shed_counter.labels(reason)
-        for tier in TIERS:
-            tier_shed.labels(tier, reason)
+    probe_lock = asyncio.Lock()
 
     @asynccontextmanager
     async def lifespan(app):
+        # Match the pool to the admission ceiling and leave one connection for readiness.
+        pool_size = settings.concurrency + 1
         async with httpx.AsyncClient(
             base_url=settings.upstream, timeout=None, trust_env=False, transport=transport,
+            limits=httpx.Limits(max_connections=pool_size, max_keepalive_connections=pool_size),
         ) as client:
             app.state.client = client
             yield
@@ -232,16 +251,17 @@ def create_app(settings=None, *, transport=None):
     @app.get('/ready')
     async def ready(request: Request):
         try:
-            response = await request.app.state.client.get('/health', timeout=1.0)
-            if response.is_success:
-                return {'status': 'ok'}
-        except httpx.HTTPError:
+            async with asyncio.timeout(READY_TIMEOUT_S), probe_lock:
+                async with request.app.state.client.stream('GET', '/health') as response:
+                    if response.is_success:
+                        return {'status': 'ok'}
+        except (TimeoutError, httpx.HTTPError):
             pass
         return error(503, 'upstream_not_ready')
 
     @app.get('/metrics')
     async def metrics():
-        return Response(generate_latest(registry), media_type=CONTENT_TYPE_LATEST)
+        return Response(generate_latest(telemetry.registry), media_type=CONTENT_TYPE_LATEST)
 
     @app.post(CHAT)
     async def chat(request: Request):
@@ -263,7 +283,7 @@ def create_app(settings=None, *, transport=None):
         except ClientDisconnect:
             return Response(status_code=499)
         return ProxyResponse(
-            request.app.state.client, admission, adaptive, shed_counter, tier_shed, bytes(body), deadline, tier,
+            request.app.state.client, admission, adaptive, telemetry, bytes(body), deadline, tier,
         )
 
     return app

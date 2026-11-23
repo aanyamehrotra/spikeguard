@@ -1,7 +1,7 @@
 from contextlib import AsyncExitStack
 import unittest
 
-from gateway.adaptive import AdaptiveConcurrency, FirstContent, MAX_EVENT_LINE_BYTES
+from gateway.adaptive import AdaptiveConcurrency
 from gateway.admission import Admission, Shed
 
 
@@ -36,10 +36,13 @@ class AdaptiveTests(unittest.IsolatedAsyncioTestCase):
                         self.fail('free request exceeded the reduced limit')
         self.assertEqual(admission.active, 0)
 
-    def test_probe_ignores_role_and_oversized_lines_and_handles_split_crlf(self):
-        probe = FirstContent()
-        self.assertFalse(probe.feed(b'data: {"choices":[{"delta":{"role":"assistant"}}]}\r\n'))
-        self.assertFalse(probe.feed(b'x' * (MAX_EVENT_LINE_BYTES + 1)))
-        self.assertFalse(probe.feed(b'\r\ndata: {"choices":[{"delta":{"con'))
-        self.assertFalse(probe.feed(b'tent":"summary"}}]}\r'))
-        self.assertTrue(probe.feed(b'\n\r\n'))
+    def test_request_feedback_is_used_once_and_attributes_changes(self):
+        changes = []
+        admission = Admission(4, 0, 1)
+        controller = AdaptiveConcurrency(admission, 1, 1.5, 1, lambda *change: changes.append(change))
+        controller.feedback(True)(None, failure='deadline')
+        feedback = controller.feedback(True)
+        feedback(0.1)
+        feedback(None)
+        self.assertEqual(admission.concurrency, 3)
+        self.assertEqual(changes, [('decrease', 'deadline'), ('increase', 'healthy')])

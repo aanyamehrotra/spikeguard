@@ -5,6 +5,8 @@ from contextlib import asynccontextmanager
 
 TIERS = ('free', 'paid')
 TIER_HEADER = 'X-SpikeGuard-Tier'
+SHED_HEADER = 'X-SpikeGuard-Shed'
+SHED_REASONS = ('queue_full', 'queue_wait_expired')
 
 
 class Shed(Exception):
