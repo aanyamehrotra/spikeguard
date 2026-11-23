@@ -1,6 +1,6 @@
 # SpikeGuard
 
-SpikeGuard is a local load-shedding gateway project for LLM ticket summarization. Run a native model and a local streaming gateway, then replay the same traffic against both to measure overload.
+SpikeGuard is a local load-shedding gateway for LLM ticket summarization. Run a native model and a streaming gateway, then replay the same traffic against both to measure overload, paid-lane isolation and steady-state capacity.
 
 ## Run the baseline on Apple Silicon
 
@@ -43,8 +43,55 @@ The gateway forwards the chat response as it arrives. Each request has a deadlin
 | `SPIKEGUARD_QUEUE_LIMIT` | 2 | Number of waiting requests. Set to zero to reject immediately when all slots are busy. |
 | `SPIKEGUARD_QUEUE_WAIT_S` | 0.25 | Maximum admission wait in seconds. |
 | `SPIKEGUARD_DEADLINE_S` | 25 | End-to-end request budget in seconds. |
+| `SPIKEGUARD_PAID_SLOTS` | 0 | Upstream slots reserved for paid requests. Leave at least one free slot. |
+| `SPIKEGUARD_PAID_QUEUE_SLOTS` | 0 | Waiting places reserved for paid requests, within the total queue limit. |
+| `SPIKEGUARD_ADAPTIVE` | 0 | Set to `1` to adjust the concurrency limit during a run. |
+| `SPIKEGUARD_ADAPTIVE_MIN` | paid slots + 1 | Lowest adaptive concurrency target. |
+| `SPIKEGUARD_ADAPTIVE_TARGET_S` | 1.5 | Upstream time-to-first-content threshold in seconds. |
+| `SPIKEGUARD_ADAPTIVE_RECOVERY_SAMPLES` | 8 | Fast, saturated samples needed to raise the limit by one. |
 
 Run one gateway worker so all requests share the same in-process limit. `/health` checks the gateway process, `/ready` checks the upstream model, and `/metrics` reports active requests, queue depth, and rejections by reason. For a matched run, keep the replay seed, traffic schedule, model settings and client deadline fixed, and let the model return to idle between runs.
+
+## Isolate paid traffic during a spike
+
+```sh
+SPIKEGUARD_PAID_SLOTS=1 SPIKEGUARD_PAID_QUEUE_SLOTS=1 docker compose up -d --build
+.venv/bin/python replay.py --url http://127.0.0.1:8081 --metrics-port 9109 \
+  --rates 0.125 2 0.125 --paid-rates 0.125 0.125 0.125 \
+  --durations 60 60 60 --timeout 25 --output runs/priority.json
+```
+
+`--rates` schedules free traffic and `--paid-rates` adds an independent, seeded paid stream. The CLI adds `X-SpikeGuard-Tier: paid` to that stream. The gateway uses the header for admission in this loopback benchmark and strips it before forwarding. For an authenticated deployment, tier classification must come from a trusted identity layer.
+
+Paid requests may use spare shared capacity and take priority when a slot opens. The gateway admits requests FIFO within each lane. Free traffic cannot borrow the reserved upstream and queue places. With both reservations at zero, the gateway uses a single FIFO lane. Read `tier_summary` in the replay JSON to compare each tier's completion, shed fraction, error fraction and p95 TTFT by arrival phase.
+
+## Adapt concurrency during overload
+
+Start llama.cpp with `SLOTS=4 ./scripts/serve.sh`. In another terminal, run the gateway with a matching maximum.
+
+```sh
+SPIKEGUARD_CONCURRENCY=4 SPIKEGUARD_ADAPTIVE=1 \
+  SPIKEGUARD_PAID_SLOTS=1 SPIKEGUARD_PAID_QUEUE_SLOTS=1 docker compose up -d --build
+```
+
+Leave room between the minimum and maximum for the limit to move. With a two-slot model and one reserved paid slot, the minimum and maximum both equal two.
+
+The controller starts at the configured maximum. It halves the limit down to the minimum when upstream first content takes at least the configured threshold, a request expires before first content, or an upstream failure prevents content. Queue wait, admission 429s, and downstream disconnects are excluded from this signal. At a reduced limit, a streak of fast requests admitted at saturation raises the limit by one. In-flight work drains after a reduction and the paid reservation remains available during the transition. The dashboard plots the target limit and actual usage separately.
+
+## Measure steady-state capacity
+
+Start the model and gateway as above. The default sweep uses short pilot windows. Use a low rate first and raise it until a tested point fails one of the SLO checks. The following longer run offers at least 100 measured requests at the lowest tested rate in each repeat.
+
+```sh
+.venv/bin/python capacity.py --rates 0.05 0.1 0.2 \
+  --warmup 60 --duration 2000 --repeats 2 --min-samples 100 \
+  --environment 'Record hardware, llama.cpp version, model, quantization and gateway settings' \
+  --output runs/native-capacity.json
+```
+
+The default targets are direct llama.cpp and the gateway. Use repeated `--target NAME=URL` flags to compare other loopback configurations. `--paid-rate` adds constant paid traffic to every tested point. Match the model settings and restart the gateway when changing configurations so each sweep starts from the same controller state. Use `--include-requests` to retain the request-level traces, including warm-up.
+
+The sweep excludes warm-up by scheduled arrival and waits for in-flight requests before moving to the next trial. Each repeat uses the same ticket seed across targets. A test point passes when p95 TTFT is below 2 seconds, unexpected errors are below 1% of offered requests, and completion is at least 99%. Each active tier and the aggregate must pass in every repeat. A rate with too few requests is reported as insufficiently sampled and cannot qualify. The result is the highest **tested** passing rate under the recorded setup. See the [benchmark results and fixture](benchmarks/README.md).
 
 ## Watch a replay in Grafana
 
@@ -57,10 +104,10 @@ docker compose up -d
 
 Open [SpikeGuard · Replay overview](http://localhost:3000/d/spikeguard-overview) in Grafana. On first login use Grafana's default `admin` / `admin` and set a new password. The [Prometheus targets page](http://localhost:9090/targets) shows whether scrapes are working. The `replay` target is available only while a replay with metrics enabled is running. Both services are published on loopback. Docker Desktop reaches the native endpoints through `host.docker.internal`.
 
-The dashboard plots the gateway queue, llama.cpp's deferred requests and active slots alongside client p95 TTFT, offered and completed throughput, terminal outcomes, shed fraction and error fraction. It uses rolling 12-second windows for replay metrics. Completion metrics are tagged by the phase in which each request was dispatched, so late outcomes can appear after the next phase starts. The dashboard estimates p95 from histogram buckets and leaves it blank when no requests complete. Its shed and error fractions use terminal outcomes in the current window. Use the final JSON for exact run-wide and phase-wide counts and offered-request denominators.
+The dashboard plots gateway queue depth and the concurrency target beside llama.cpp's deferred and active requests. It also shows lane usage and client p95 TTFT, shedding and failures by tier. It uses rolling 12-second windows for replay metrics. Completion metrics are tagged by the phase in which each request was dispatched, so late outcomes can appear after the next phase starts. The dashboard estimates p95 from histogram buckets and leaves it blank when no requests complete. Its shed and error fractions use terminal outcomes in the current window. Use the final JSON for exact run-wide and phase-wide counts and offered-request denominators.
 
 Metrics mode leaves five seconds before the first request and after the last outcome so Prometheus can collect the initial and final counters. For a fresh run, zoom Grafana to the minutes around the replay. `docker compose down` stops monitoring and preserves its local volumes.
 
-See [AGENTS.md](AGENTS.md) for the draft SLO and test scenarios. The [measured direct and gateway runs](benchmarks/README.md) show the trade-off between queueing and explicit rejection. Priority lanes, adaptive concurrency and the full capacity report are pending. Capacity on this Mac will differ from datacenter GPU capacity.
+See [AGENTS.md](AGENTS.md) for the draft SLO and test scenarios. The [measured direct and gateway runs](benchmarks/README.md) show the trade-off between queueing and explicit rejection. Apple Silicon capacity depends on the hardware, model and slot configuration.
 
 [llama.cpp server documentation](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md) · [Qwen model card](https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF) · [Docker Desktop host connectivity](https://docs.docker.com/desktop/features/networking/networking-how-tos/)

@@ -93,7 +93,8 @@ def main():
     parser.add_argument('--cooldown', type=float, default=2, help='Idle seconds between runs, after outstanding requests end')
     parser.add_argument('--timeout', type=float, default=25, help='Client deadline in seconds per request')
     parser.add_argument('--repeats', type=int, default=2)
-    parser.add_argument('--min-samples', type=int, default=100, help='Minimum measured offers per active tier and repeat')
+    parser.add_argument('--min-samples', type=int, default=5,
+                        help='Minimum measured offers per active tier and repeat (default: %(default)s for a pilot sweep)')
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--environment', help='Hardware, model, slots and gateway settings to record with the results')
     parser.add_argument('--include-requests', action='store_true', help='Include every request including warm-up in the JSON')

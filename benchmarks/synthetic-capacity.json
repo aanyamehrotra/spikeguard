@@ -1,0 +1,893 @@
+{
+  "slo": {
+    "max_p95_ttft_s": 2,
+    "max_error_fraction": 0.01,
+    "min_completion_fraction": 0.99
+  },
+  "free_rates_rps": [
+    5.0,
+    20.0
+  ],
+  "paid_rate_rps": 2.0,
+  "warmup_s": 1.0,
+  "measured_s": 5.0,
+  "cooldown_s": 0.5,
+  "timeout_s": 2.0,
+  "repeats": 2,
+  "min_samples": 8,
+  "seed": 42,
+  "environment": "Windows, Python 3.12, two-slot SSE fixture, FIFO and one reserved paid slot",
+  "targets": {
+    "direct": {
+      "url": "http://127.0.0.1:18080",
+      "trials": [
+        {
+          "status": "pass",
+          "aggregate": {
+            "offered": 35,
+            "outcomes": {
+              "completed": 35
+            },
+            "completion_fraction": 1.0,
+            "completed_per_offered_second": 7.0,
+            "shed_fraction": 0.0,
+            "error_fraction": 0.0,
+            "median_ttft_s": 0.06199999991804361,
+            "p95_ttft_s": 0.07799999974668026,
+            "checks": {
+              "ttft": true,
+              "errors": true,
+              "completion": true
+            },
+            "status": "pass"
+          },
+          "by_tier": {
+            "free": {
+              "offered": 25,
+              "outcomes": {
+                "completed": 25
+              },
+              "completion_fraction": 1.0,
+              "completed_per_offered_second": 5.0,
+              "shed_fraction": 0.0,
+              "error_fraction": 0.0,
+              "median_ttft_s": 0.06199999991804361,
+              "p95_ttft_s": 0.07799999974668026,
+              "checks": {
+                "ttft": true,
+                "errors": true,
+                "completion": true
+              },
+              "status": "pass"
+            },
+            "paid": {
+              "offered": 10,
+              "outcomes": {
+                "completed": 10
+              },
+              "completion_fraction": 1.0,
+              "completed_per_offered_second": 2.0,
+              "shed_fraction": 0.0,
+              "error_fraction": 0.0,
+              "median_ttft_s": 0.06199999991804361,
+              "p95_ttft_s": 0.07799999974668026,
+              "checks": {
+                "ttft": true,
+                "errors": true,
+                "completion": true
+              },
+              "status": "pass"
+            }
+          },
+          "free_rate_rps": 5.0,
+          "repeat": 1,
+          "seed": 42
+        },
+        {
+          "status": "pass",
+          "aggregate": {
+            "offered": 35,
+            "outcomes": {
+              "completed": 35
+            },
+            "completion_fraction": 1.0,
+            "completed_per_offered_second": 7.0,
+            "shed_fraction": 0.0,
+            "error_fraction": 0.0,
+            "median_ttft_s": 0.04700000025331974,
+            "p95_ttft_s": 0.07799999974668026,
+            "checks": {
+              "ttft": true,
+              "errors": true,
+              "completion": true
+            },
+            "status": "pass"
+          },
+          "by_tier": {
+            "free": {
+              "offered": 25,
+              "outcomes": {
+                "completed": 25
+              },
+              "completion_fraction": 1.0,
+              "completed_per_offered_second": 5.0,
+              "shed_fraction": 0.0,
+              "error_fraction": 0.0,
+              "median_ttft_s": 0.04700000025331974,
+              "p95_ttft_s": 0.07799999974668026,
+              "checks": {
+                "ttft": true,
+                "errors": true,
+                "completion": true
+              },
+              "status": "pass"
+            },
+            "paid": {
+              "offered": 10,
+              "outcomes": {
+                "completed": 10
+              },
+              "completion_fraction": 1.0,
+              "completed_per_offered_second": 2.0,
+              "shed_fraction": 0.0,
+              "error_fraction": 0.0,
+              "median_ttft_s": 0.04600000008940697,
+              "p95_ttft_s": 0.07799999974668026,
+              "checks": {
+                "ttft": true,
+                "errors": true,
+                "completion": true
+              },
+              "status": "pass"
+            }
+          },
+          "free_rate_rps": 5.0,
+          "repeat": 2,
+          "seed": 43
+        },
+        {
+          "status": "fail",
+          "aggregate": {
+            "offered": 110,
+            "outcomes": {
+              "completed": 43,
+              "timeout": 67
+            },
+            "completion_fraction": 0.39090909090909093,
+            "completed_per_offered_second": 8.6,
+            "shed_fraction": 0.0,
+            "error_fraction": 0.6090909090909091,
+            "median_ttft_s": 1.2659999998286366,
+            "p95_ttft_s": 1.7970000002533197,
+            "checks": {
+              "ttft": true,
+              "errors": false,
+              "completion": false
+            },
+            "status": "fail"
+          },
+          "by_tier": {
+            "free": {
+              "offered": 100,
+              "outcomes": {
+                "completed": 39,
+                "timeout": 61
+              },
+              "completion_fraction": 0.39,
+              "completed_per_offered_second": 7.8,
+              "shed_fraction": 0.0,
+              "error_fraction": 0.61,
+              "median_ttft_s": 1.2659999998286366,
+              "p95_ttft_s": 1.8430000003427267,
+              "checks": {
+                "ttft": true,
+                "errors": false,
+                "completion": false
+              },
+              "status": "fail"
+            },
+            "paid": {
+              "offered": 10,
+              "outcomes": {
+                "completed": 4,
+                "timeout": 6
+              },
+              "completion_fraction": 0.4,
+              "completed_per_offered_second": 0.8,
+              "shed_fraction": 0.0,
+              "error_fraction": 0.6,
+              "median_ttft_s": 1.180000000167638,
+              "p95_ttft_s": 1.7029999997466803,
+              "checks": {
+                "ttft": true,
+                "errors": false,
+                "completion": false
+              },
+              "status": "fail"
+            }
+          },
+          "free_rate_rps": 20.0,
+          "repeat": 1,
+          "seed": 42
+        },
+        {
+          "status": "fail",
+          "aggregate": {
+            "offered": 110,
+            "outcomes": {
+              "completed": 43,
+              "timeout": 67
+            },
+            "completion_fraction": 0.39090909090909093,
+            "completed_per_offered_second": 8.6,
+            "shed_fraction": 0.0,
+            "error_fraction": 0.6090909090909091,
+            "median_ttft_s": 1.2970000002533197,
+            "p95_ttft_s": 1.7970000002533197,
+            "checks": {
+              "ttft": true,
+              "errors": false,
+              "completion": false
+            },
+            "status": "fail"
+          },
+          "by_tier": {
+            "free": {
+              "offered": 100,
+              "outcomes": {
+                "completed": 39,
+                "timeout": 61
+              },
+              "completion_fraction": 0.39,
+              "completed_per_offered_second": 7.8,
+              "shed_fraction": 0.0,
+              "error_fraction": 0.61,
+              "median_ttft_s": 1.2970000002533197,
+              "p95_ttft_s": 1.8279999997466803,
+              "checks": {
+                "ttft": true,
+                "errors": false,
+                "completion": false
+              },
+              "status": "fail"
+            },
+            "paid": {
+              "offered": 10,
+              "outcomes": {
+                "completed": 4,
+                "timeout": 6
+              },
+              "completion_fraction": 0.4,
+              "completed_per_offered_second": 0.8,
+              "shed_fraction": 0.0,
+              "error_fraction": 0.6,
+              "median_ttft_s": 1.2339999992400408,
+              "p95_ttft_s": 1.703999999910593,
+              "checks": {
+                "ttft": true,
+                "errors": false,
+                "completion": false
+              },
+              "status": "fail"
+            }
+          },
+          "free_rate_rps": 20.0,
+          "repeat": 2,
+          "seed": 43
+        }
+      ],
+      "rates": [
+        {
+          "free_rate_rps": 5.0,
+          "paid_rate_rps": 2.0,
+          "total_rate_rps": 7.0,
+          "all_repeats_pass": true,
+          "repeat_statuses": [
+            "pass",
+            "pass"
+          ]
+        },
+        {
+          "free_rate_rps": 20.0,
+          "paid_rate_rps": 2.0,
+          "total_rate_rps": 22.0,
+          "all_repeats_pass": false,
+          "repeat_statuses": [
+            "fail",
+            "fail"
+          ]
+        }
+      ],
+      "highest_passing_rate": {
+        "free_rate_rps": 5.0,
+        "paid_rate_rps": 2.0,
+        "total_rate_rps": 7.0,
+        "all_repeats_pass": true,
+        "repeat_statuses": [
+          "pass",
+          "pass"
+        ]
+      }
+    },
+    "fifo": {
+      "url": "http://127.0.0.1:18081",
+      "trials": [
+        {
+          "status": "pass",
+          "aggregate": {
+            "offered": 35,
+            "outcomes": {
+              "completed": 35
+            },
+            "completion_fraction": 1.0,
+            "completed_per_offered_second": 7.0,
+            "shed_fraction": 0.0,
+            "error_fraction": 0.0,
+            "median_ttft_s": 0.06199999991804361,
+            "p95_ttft_s": 0.07799999974668026,
+            "checks": {
+              "ttft": true,
+              "errors": true,
+              "completion": true
+            },
+            "status": "pass"
+          },
+          "by_tier": {
+            "free": {
+              "offered": 25,
+              "outcomes": {
+                "completed": 25
+              },
+              "completion_fraction": 1.0,
+              "completed_per_offered_second": 5.0,
+              "shed_fraction": 0.0,
+              "error_fraction": 0.0,
+              "median_ttft_s": 0.06199999991804361,
+              "p95_ttft_s": 0.07799999974668026,
+              "checks": {
+                "ttft": true,
+                "errors": true,
+                "completion": true
+              },
+              "status": "pass"
+            },
+            "paid": {
+              "offered": 10,
+              "outcomes": {
+                "completed": 10
+              },
+              "completion_fraction": 1.0,
+              "completed_per_offered_second": 2.0,
+              "shed_fraction": 0.0,
+              "error_fraction": 0.0,
+              "median_ttft_s": 0.06199999991804361,
+              "p95_ttft_s": 0.07799999974668026,
+              "checks": {
+                "ttft": true,
+                "errors": true,
+                "completion": true
+              },
+              "status": "pass"
+            }
+          },
+          "free_rate_rps": 5.0,
+          "repeat": 1,
+          "seed": 42
+        },
+        {
+          "status": "pass",
+          "aggregate": {
+            "offered": 35,
+            "outcomes": {
+              "completed": 35
+            },
+            "completion_fraction": 1.0,
+            "completed_per_offered_second": 7.0,
+            "shed_fraction": 0.0,
+            "error_fraction": 0.0,
+            "median_ttft_s": 0.06199999991804361,
+            "p95_ttft_s": 0.07799999974668026,
+            "checks": {
+              "ttft": true,
+              "errors": true,
+              "completion": true
+            },
+            "status": "pass"
+          },
+          "by_tier": {
+            "free": {
+              "offered": 25,
+              "outcomes": {
+                "completed": 25
+              },
+              "completion_fraction": 1.0,
+              "completed_per_offered_second": 5.0,
+              "shed_fraction": 0.0,
+              "error_fraction": 0.0,
+              "median_ttft_s": 0.06199999991804361,
+              "p95_ttft_s": 0.06300000008195639,
+              "checks": {
+                "ttft": true,
+                "errors": true,
+                "completion": true
+              },
+              "status": "pass"
+            },
+            "paid": {
+              "offered": 10,
+              "outcomes": {
+                "completed": 10
+              },
+              "completion_fraction": 1.0,
+              "completed_per_offered_second": 2.0,
+              "shed_fraction": 0.0,
+              "error_fraction": 0.0,
+              "median_ttft_s": 0.06199999991804361,
+              "p95_ttft_s": 0.07799999974668026,
+              "checks": {
+                "ttft": true,
+                "errors": true,
+                "completion": true
+              },
+              "status": "pass"
+            }
+          },
+          "free_rate_rps": 5.0,
+          "repeat": 2,
+          "seed": 43
+        },
+        {
+          "status": "fail",
+          "aggregate": {
+            "offered": 110,
+            "outcomes": {
+              "shed": 48,
+              "completed": 62
+            },
+            "completion_fraction": 0.5636363636363636,
+            "completed_per_offered_second": 12.4,
+            "shed_fraction": 0.43636363636363634,
+            "error_fraction": 0.0,
+            "median_ttft_s": 0.20300000021234155,
+            "p95_ttft_s": 0.25,
+            "checks": {
+              "ttft": true,
+              "errors": true,
+              "completion": false
+            },
+            "status": "fail"
+          },
+          "by_tier": {
+            "free": {
+              "offered": 100,
+              "outcomes": {
+                "shed": 40,
+                "completed": 60
+              },
+              "completion_fraction": 0.6,
+              "completed_per_offered_second": 12.0,
+              "shed_fraction": 0.4,
+              "error_fraction": 0.0,
+              "median_ttft_s": 0.20299999974668026,
+              "p95_ttft_s": 0.25,
+              "checks": {
+                "ttft": true,
+                "errors": true,
+                "completion": false
+              },
+              "status": "fail"
+            },
+            "paid": {
+              "offered": 10,
+              "outcomes": {
+                "shed": 8,
+                "completed": 2
+              },
+              "completion_fraction": 0.2,
+              "completed_per_offered_second": 0.4,
+              "shed_fraction": 0.8,
+              "error_fraction": 0.0,
+              "median_ttft_s": 0.25,
+              "p95_ttft_s": 0.26599999982863665,
+              "checks": {
+                "ttft": true,
+                "errors": true,
+                "completion": false
+              },
+              "status": "fail"
+            }
+          },
+          "free_rate_rps": 20.0,
+          "repeat": 1,
+          "seed": 42
+        },
+        {
+          "status": "fail",
+          "aggregate": {
+            "offered": 110,
+            "outcomes": {
+              "completed": 63,
+              "shed": 47
+            },
+            "completion_fraction": 0.5727272727272728,
+            "completed_per_offered_second": 12.6,
+            "shed_fraction": 0.42727272727272725,
+            "error_fraction": 0.0,
+            "median_ttft_s": 0.1869999999180436,
+            "p95_ttft_s": 0.23500000033527613,
+            "checks": {
+              "ttft": true,
+              "errors": true,
+              "completion": false
+            },
+            "status": "fail"
+          },
+          "by_tier": {
+            "free": {
+              "offered": 100,
+              "outcomes": {
+                "completed": 59,
+                "shed": 41
+              },
+              "completion_fraction": 0.59,
+              "completed_per_offered_second": 11.8,
+              "shed_fraction": 0.41,
+              "error_fraction": 0.0,
+              "median_ttft_s": 0.1869999999180436,
+              "p95_ttft_s": 0.25,
+              "checks": {
+                "ttft": true,
+                "errors": true,
+                "completion": false
+              },
+              "status": "fail"
+            },
+            "paid": {
+              "offered": 10,
+              "outcomes": {
+                "completed": 4,
+                "shed": 6
+              },
+              "completion_fraction": 0.4,
+              "completed_per_offered_second": 0.8,
+              "shed_fraction": 0.6,
+              "error_fraction": 0.0,
+              "median_ttft_s": 0.20250000013038516,
+              "p95_ttft_s": 0.23500000033527613,
+              "checks": {
+                "ttft": true,
+                "errors": true,
+                "completion": false
+              },
+              "status": "fail"
+            }
+          },
+          "free_rate_rps": 20.0,
+          "repeat": 2,
+          "seed": 43
+        }
+      ],
+      "rates": [
+        {
+          "free_rate_rps": 5.0,
+          "paid_rate_rps": 2.0,
+          "total_rate_rps": 7.0,
+          "all_repeats_pass": true,
+          "repeat_statuses": [
+            "pass",
+            "pass"
+          ]
+        },
+        {
+          "free_rate_rps": 20.0,
+          "paid_rate_rps": 2.0,
+          "total_rate_rps": 22.0,
+          "all_repeats_pass": false,
+          "repeat_statuses": [
+            "fail",
+            "fail"
+          ]
+        }
+      ],
+      "highest_passing_rate": {
+        "free_rate_rps": 5.0,
+        "paid_rate_rps": 2.0,
+        "total_rate_rps": 7.0,
+        "all_repeats_pass": true,
+        "repeat_statuses": [
+          "pass",
+          "pass"
+        ]
+      }
+    },
+    "priority": {
+      "url": "http://127.0.0.1:18082",
+      "trials": [
+        {
+          "status": "pass",
+          "aggregate": {
+            "offered": 35,
+            "outcomes": {
+              "completed": 35
+            },
+            "completion_fraction": 1.0,
+            "completed_per_offered_second": 7.0,
+            "shed_fraction": 0.0,
+            "error_fraction": 0.0,
+            "median_ttft_s": 0.06199999991804361,
+            "p95_ttft_s": 0.06300000008195639,
+            "checks": {
+              "ttft": true,
+              "errors": true,
+              "completion": true
+            },
+            "status": "pass"
+          },
+          "by_tier": {
+            "free": {
+              "offered": 25,
+              "outcomes": {
+                "completed": 25
+              },
+              "completion_fraction": 1.0,
+              "completed_per_offered_second": 5.0,
+              "shed_fraction": 0.0,
+              "error_fraction": 0.0,
+              "median_ttft_s": 0.06199999991804361,
+              "p95_ttft_s": 0.06300000008195639,
+              "checks": {
+                "ttft": true,
+                "errors": true,
+                "completion": true
+              },
+              "status": "pass"
+            },
+            "paid": {
+              "offered": 10,
+              "outcomes": {
+                "completed": 10
+              },
+              "completion_fraction": 1.0,
+              "completed_per_offered_second": 2.0,
+              "shed_fraction": 0.0,
+              "error_fraction": 0.0,
+              "median_ttft_s": 0.0625,
+              "p95_ttft_s": 0.06300000008195639,
+              "checks": {
+                "ttft": true,
+                "errors": true,
+                "completion": true
+              },
+              "status": "pass"
+            }
+          },
+          "free_rate_rps": 5.0,
+          "repeat": 1,
+          "seed": 42
+        },
+        {
+          "status": "pass",
+          "aggregate": {
+            "offered": 35,
+            "outcomes": {
+              "completed": 35
+            },
+            "completion_fraction": 1.0,
+            "completed_per_offered_second": 7.0,
+            "shed_fraction": 0.0,
+            "error_fraction": 0.0,
+            "median_ttft_s": 0.06199999991804361,
+            "p95_ttft_s": 0.07799999974668026,
+            "checks": {
+              "ttft": true,
+              "errors": true,
+              "completion": true
+            },
+            "status": "pass"
+          },
+          "by_tier": {
+            "free": {
+              "offered": 25,
+              "outcomes": {
+                "completed": 25
+              },
+              "completion_fraction": 1.0,
+              "completed_per_offered_second": 5.0,
+              "shed_fraction": 0.0,
+              "error_fraction": 0.0,
+              "median_ttft_s": 0.06199999991804361,
+              "p95_ttft_s": 0.07799999974668026,
+              "checks": {
+                "ttft": true,
+                "errors": true,
+                "completion": true
+              },
+              "status": "pass"
+            },
+            "paid": {
+              "offered": 10,
+              "outcomes": {
+                "completed": 10
+              },
+              "completion_fraction": 1.0,
+              "completed_per_offered_second": 2.0,
+              "shed_fraction": 0.0,
+              "error_fraction": 0.0,
+              "median_ttft_s": 0.06199999991804361,
+              "p95_ttft_s": 0.07799999974668026,
+              "checks": {
+                "ttft": true,
+                "errors": true,
+                "completion": true
+              },
+              "status": "pass"
+            }
+          },
+          "free_rate_rps": 5.0,
+          "repeat": 2,
+          "seed": 43
+        },
+        {
+          "status": "fail",
+          "aggregate": {
+            "offered": 110,
+            "outcomes": {
+              "completed": 40,
+              "shed": 70
+            },
+            "completion_fraction": 0.36363636363636365,
+            "completed_per_offered_second": 8.0,
+            "shed_fraction": 0.6363636363636364,
+            "error_fraction": 0.0,
+            "median_ttft_s": 0.21100000012665987,
+            "p95_ttft_s": 0.23500000033527613,
+            "checks": {
+              "ttft": true,
+              "errors": true,
+              "completion": false
+            },
+            "status": "fail"
+          },
+          "by_tier": {
+            "free": {
+              "offered": 100,
+              "outcomes": {
+                "completed": 30,
+                "shed": 70
+              },
+              "completion_fraction": 0.3,
+              "completed_per_offered_second": 6.0,
+              "shed_fraction": 0.7,
+              "error_fraction": 0.0,
+              "median_ttft_s": 0.2190000000409782,
+              "p95_ttft_s": 0.25,
+              "checks": {
+                "ttft": true,
+                "errors": true,
+                "completion": false
+              },
+              "status": "fail"
+            },
+            "paid": {
+              "offered": 10,
+              "outcomes": {
+                "completed": 10
+              },
+              "completion_fraction": 1.0,
+              "completed_per_offered_second": 2.0,
+              "shed_fraction": 0.0,
+              "error_fraction": 0.0,
+              "median_ttft_s": 0.0625,
+              "p95_ttft_s": 0.07800000067800283,
+              "checks": {
+                "ttft": true,
+                "errors": true,
+                "completion": true
+              },
+              "status": "pass"
+            }
+          },
+          "free_rate_rps": 20.0,
+          "repeat": 1,
+          "seed": 42
+        },
+        {
+          "status": "fail",
+          "aggregate": {
+            "offered": 110,
+            "outcomes": {
+              "completed": 41,
+              "shed": 69
+            },
+            "completion_fraction": 0.37272727272727274,
+            "completed_per_offered_second": 8.2,
+            "shed_fraction": 0.6272727272727273,
+            "error_fraction": 0.0,
+            "median_ttft_s": 0.20299999974668026,
+            "p95_ttft_s": 0.23400000017136335,
+            "checks": {
+              "ttft": true,
+              "errors": true,
+              "completion": false
+            },
+            "status": "fail"
+          },
+          "by_tier": {
+            "free": {
+              "offered": 100,
+              "outcomes": {
+                "completed": 31,
+                "shed": 69
+              },
+              "completion_fraction": 0.31,
+              "completed_per_offered_second": 6.2,
+              "shed_fraction": 0.69,
+              "error_fraction": 0.0,
+              "median_ttft_s": 0.2180000003427267,
+              "p95_ttft_s": 0.23400000017136335,
+              "checks": {
+                "ttft": true,
+                "errors": true,
+                "completion": false
+              },
+              "status": "fail"
+            },
+            "paid": {
+              "offered": 10,
+              "outcomes": {
+                "completed": 10
+              },
+              "completion_fraction": 1.0,
+              "completed_per_offered_second": 2.0,
+              "shed_fraction": 0.0,
+              "error_fraction": 0.0,
+              "median_ttft_s": 0.0625,
+              "p95_ttft_s": 0.07799999974668026,
+              "checks": {
+                "ttft": true,
+                "errors": true,
+                "completion": true
+              },
+              "status": "pass"
+            }
+          },
+          "free_rate_rps": 20.0,
+          "repeat": 2,
+          "seed": 43
+        }
+      ],
+      "rates": [
+        {
+          "free_rate_rps": 5.0,
+          "paid_rate_rps": 2.0,
+          "total_rate_rps": 7.0,
+          "all_repeats_pass": true,
+          "repeat_statuses": [
+            "pass",
+            "pass"
+          ]
+        },
+        {
+          "free_rate_rps": 20.0,
+          "paid_rate_rps": 2.0,
+          "total_rate_rps": 22.0,
+          "all_repeats_pass": false,
+          "repeat_statuses": [
+            "fail",
+            "fail"
+          ]
+        }
+      ],
+      "highest_passing_rate": {
+        "free_rate_rps": 5.0,
+        "paid_rate_rps": 2.0,
+        "total_rate_rps": 7.0,
+        "all_repeats_pass": true,
+        "repeat_statuses": [
+          "pass",
+          "pass"
+        ]
+      }
+    }
+  }
+}

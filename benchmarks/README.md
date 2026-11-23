@@ -57,3 +57,39 @@ The native deferred queue peaked at 22 sampled requests during the direct run an
 The gateway kept completed spike requests below the 2-second TTFT target in these runs, while rejecting 79–88% of offered spike traffic. The resulting completion counts are small, and shedding persisted into recovery. These runs demonstrate admission control under overload. A steady-state rate sweep is needed to determine capacity under the completion SLO.
 
 Raw traces are available for the [direct run](observability-smoke.json), [gateway run 1](gateway-v1.json), and [gateway run 2](gateway-v1-repeat.json).
+
+## Steady-state sweep with a streaming fixture
+
+This smoke test ran on Windows with Python 3.12 and a [two-slot SSE fixture](mock_upstream.py). Each request occupies a fixture slot for 140 ms plus scheduling and I/O. The FIFO gateway used the default settings. The priority gateway reserved one of its two upstream slots and one of its two queue places for paid traffic. Both gateways used fixed concurrency. Each point ran twice with one second of warm-up, five measured seconds and a two-second client deadline.
+
+| Path | Verdict at 7 req/s | Verdict at 22 req/s | Free completed at 22 req/s | Paid completed at 22 req/s |
+| --- | --- | --- | ---: | ---: |
+| Direct | Pass, both repeats | Fail, both repeats | 78 / 200 | 8 / 20 |
+| FIFO gateway | Pass, both repeats | Fail, both repeats | 119 / 200 | 6 / 20 |
+| Priority gateway | Pass, both repeats | Fail, both repeats | 61 / 200 | 20 / 20 |
+
+At 22 req/s, direct replay timed out on 134 requests. The FIFO and priority gateways returned 95 and 139 intentional 429s, respectively, with zero unexpected errors. The priority gateway kept paid p95 TTFT at or below 0.08 seconds in both repeats. The aggregate failed the 99% completion target on all three paths. Seven requests per second was the highest passing point of the two tested. These short trials exercise the sweep and show the effect of reserving a lane. Apple Silicon capacity still needs a longer sweep on the native model. See the [recorded JSON](synthetic-capacity.json).
+
+To reproduce the fixture run, use three terminals at the repository root with the requirements installed. Start the fixture, then the FIFO and priority gateways.
+
+```sh
+python -m uvicorn benchmarks.mock_upstream:app --port 18080
+```
+
+```sh
+SPIKEGUARD_UPSTREAM=http://127.0.0.1:18080 python -m uvicorn gateway.app:app --port 18081
+```
+
+```sh
+SPIKEGUARD_UPSTREAM=http://127.0.0.1:18080 SPIKEGUARD_PAID_SLOTS=1 SPIKEGUARD_PAID_QUEUE_SLOTS=1 \
+  python -m uvicorn gateway.app:app --port 18082
+```
+
+Run the sweep from another terminal.
+
+```sh
+python capacity.py --target direct=http://127.0.0.1:18080 \
+  --target fifo=http://127.0.0.1:18081 --target priority=http://127.0.0.1:18082 \
+  --rates 5 20 --paid-rate 2 --warmup 1 --duration 5 --cooldown 0.5 \
+  --timeout 2 --repeats 2 --min-samples 8 --output runs/synthetic-capacity.json
+```
