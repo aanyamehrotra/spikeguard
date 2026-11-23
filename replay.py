@@ -219,10 +219,12 @@ async def replay(args, tickets, metrics=None, *, phases=PHASES):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--url', default='http://127.0.0.1:8080')
-    parser.add_argument('--rates', type=float, nargs=3, default=(0.5, 8, 0.5))
+    parser.add_argument('--rates', type=float, nargs=3, default=(0.125, 0.25, 0.125),
+                        help='Free requests per second in baseline, spike and recovery (default: %(default)s)')
     parser.add_argument('--paid-rates', type=float, nargs=3, default=(0, 0, 0),
                         help='Additional paid requests per second in baseline, spike and recovery')
-    parser.add_argument('--durations', type=float, nargs=3, default=(30, 30, 45))
+    parser.add_argument('--durations', type=float, nargs=3, default=(8, 12, 8),
+                        help='Seconds in baseline, spike and recovery (default: %(default)s)')
     parser.add_argument('--timeout', type=float, default=15)
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--metrics-port', type=int, help='Serve live Prometheus metrics on loopback')

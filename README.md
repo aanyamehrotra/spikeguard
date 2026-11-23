@@ -4,14 +4,25 @@ SpikeGuard is a streaming gateway that protects paid LLM traffic when free traff
 
 ## Try it in under a minute
 
-With Python 3.11 or newer, run these commands from the repository root. The demo starts a two-slot streaming fixture and the real gateway on temporary loopback ports.
+With Python 3.11 or newer, run these commands from the repository root. The demo uses a lightweight streaming fixture and the real gateway on temporary loopback ports. It runs on macOS, Windows and Linux with only the Python dependencies.
+
+On macOS and Linux:
 
 ```sh
-python -m pip install -r requirements.txt
-python -m scripts.demo --check
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m scripts.demo
 ```
 
-The demo sends the same baseline, spike and recovery traffic directly to the fixture, through a FIFO gateway and through a gateway with a reserved paid lane. It prints paid and free completion, sheds, errors and p95 time to first content for each path. The raw trace goes to `runs/demo.json`. The test suite also checks paid capacity and disconnect cleanup over HTTP.
+On Windows PowerShell:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m scripts.demo
+```
+
+The demo sends the same baseline, spike and recovery traffic directly to the fixture, through a FIFO gateway and through a gateway with a reserved paid lane. It prints paid and free completion, sheds, errors and p95 time to first content for each path. The raw trace goes to `runs/demo.json`. Use `--check` to enforce the fixture's expected overload behavior. The test suite also checks paid capacity and disconnect cleanup over HTTP.
 
 ```mermaid
 flowchart LR
@@ -31,32 +42,32 @@ Run `python -m unittest discover -s tests -v` for the full checks. See the [meas
 
 On a two-slot llama.cpp CPU run, the direct path timed out on all 76 requests at the higher offered rate. The priority gateway shed 67 and completed nine, including two of four paid requests. FIFO completed zero of the four paid requests. The reservation preserved paid admission while both lanes continued to share model compute. Neither tested rate met the full latency and completion SLO. [Windows CPU pilot](benchmarks/README.md#windows-cpu-pilot-with-llamacpp)
 
-## Run the baseline on Apple Silicon
+## Run a local model on Apple Silicon
 
 ```sh
 brew install llama.cpp
 ./scripts/serve.sh
 ```
 
-The first launch downloads Qwen 2.5 3B Instruct Q4_K_M (about 2.1 GB). The launcher enables Metal offload, two parallel slots, continuous batching and the Prometheus metrics endpoint. Run inference natively because Docker Desktop's Linux containers cannot use the Mac's Metal GPU. The gateway, Prometheus and Grafana run in Docker. On a GPU host, vLLM can replace llama.cpp while retaining the streaming client and repeating the capacity sweep.
+The first launch downloads Qwen2.5 0.5B Instruct Q4_K_M (about 491 MB). The launcher lets llama.cpp select GPU offload, so use the native ARM64 Homebrew build to enable Metal on M-series Macs. It uses two slots, a 4096-token context, two CPU threads and a 128 MiB prompt cache by default. [Homebrew formula](https://formulae.brew.sh/formula/llama.cpp) · [Qwen model file](https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/blob/main/qwen2.5-0.5b-instruct-q4_k_m.gguf)
+
+Set `LLAMA_GPU_LAYERS=0` for CPU inference, `LLAMA_THREADS` to tune CPU use, or `LLAMA_MODEL_PATH` to use a GGUF file already on disk. For the larger model used in the historical Apple Silicon runs, set `LLAMA_MODEL_REPO=Qwen/Qwen2.5-3B-Instruct-GGUF:Q4_K_M` and `CONTEXT=8192`.
 
 In another terminal with Python 3.11 or newer:
 
 ```sh
 curl -fsS http://127.0.0.1:8080/health
 curl -fsS http://127.0.0.1:8080/metrics
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
 .venv/bin/python replay.py --output runs/direct.json
 ```
 
-The default baseline, spike and recovery offer 0.5, 8 and 0.5 requests per second over 30, 30 and 45 seconds. Tune `--rates` so baseline is healthy and the spike overloads your Mac. Requests arrive on schedule independently of previous completions. Keep rates, durations, seed and timeout fixed between direct and gateway runs. Warm the model before measurement and record the Mac hardware, llama.cpp version, model quantization and slot count.
+The default replay offers five requests across 28 seconds, at a peak rate of 0.25 requests per second. Use explicit `--rates` and `--durations` for a sustained load test. Requests arrive on schedule independently of previous completions. Keep rates, durations, seed and timeout fixed between direct and gateway runs. Warm the model before measurement and record the hardware, llama.cpp version, model quantization and slot count.
 
 The JSON records per-request dispatch lag, status, latency and outcome. TTFT starts at client dispatch and ends at the first nonempty assistant content. Completion requires a complete SSE `[DONE]` event. Phase summaries group requests by scheduled arrival and report completed-stream p95, intentional sheds, errors, and tail latency for dispatch, completion and shedding. Completed requests per offered second includes completions after the phase ended. Read completion fraction alongside p95, especially when requests time out.
 
 ## Replay through the gateway
 
-Keep the native model running with two parallel slots. From the repo:
+Keep the native model running with two parallel slots. For a gateway-only setup, start `python -m uvicorn gateway.app:app --host 127.0.0.1 --port 8081` using your virtual environment. It connects to the model on port 8080. For the gateway with Prometheus and Grafana, run the Compose stack.
 
 ```sh
 docker compose up -d --build
@@ -109,7 +120,7 @@ The controller starts at the configured maximum. It halves the limit down to the
 
 ## Measure steady-state capacity
 
-Start the model and gateway as above. The default sweep uses short pilot windows. Use a low rate first and raise it until a tested point fails one of the SLO checks. The following longer run offers at least 100 measured requests at the lowest tested rate in each repeat.
+Start the model and gateway as above. The default sweep uses 32-second pilot windows at two low rates with one repeat per target. Use a low rate first and raise it until a tested point fails one of the SLO checks. The following longer run offers at least 100 measured requests at the lowest tested rate in each repeat.
 
 ```sh
 .venv/bin/python capacity.py --rates 0.05 0.1 0.2 \

@@ -88,15 +88,15 @@ async def sweep(args, targets, tickets):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--target', action='append', metavar='NAME=URL', help='Loopback base URL. Repeat for comparisons.')
-    parser.add_argument('--rates', type=float, nargs='+', default=(0.05, 0.1, 0.2, 0.4, 0.8),
-                        help='Increasing free request rates to test')
+    parser.add_argument('--rates', type=float, nargs='+', default=(0.125, 0.25),
+                        help='Increasing free request rates to test (default: %(default)s)')
     parser.add_argument('--paid-rate', type=float, default=0, help='Additional paid requests per second at every point')
-    parser.add_argument('--warmup', type=float, default=30, help='Seconds to exclude at the start of each run')
-    parser.add_argument('--duration', type=float, default=120, help='Measured seconds per run after warm-up')
+    parser.add_argument('--warmup', type=float, default=8, help='Seconds to exclude at the start of each run')
+    parser.add_argument('--duration', type=float, default=32, help='Measured seconds per run after warm-up')
     parser.add_argument('--cooldown', type=float, default=2, help='Idle seconds between runs, after outstanding requests end')
     parser.add_argument('--timeout', type=float, default=25, help='Client deadline in seconds per request')
-    parser.add_argument('--repeats', type=int, default=2)
-    parser.add_argument('--min-samples', type=int, default=5,
+    parser.add_argument('--repeats', type=int, default=1)
+    parser.add_argument('--min-samples', type=int, default=4,
                         help='Minimum measured offers per active tier and repeat (default: %(default)s for a pilot sweep)')
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--environment', help='Hardware, model, slots and gateway settings to record with the results')
