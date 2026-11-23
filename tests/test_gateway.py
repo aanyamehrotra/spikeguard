@@ -278,6 +278,22 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((response.status_code, response.json()['error']['code']), (502, 'upstream_unavailable'))
         await self.assert_idle()
 
+    async def test_adaptive_limit_responds_to_deadline_and_healthy_stream(self):
+        async def upstream(request):
+            if await request.aread() == b'slow':
+                await asyncio.Event().wait()
+            return httpx.Response(200, content=CHUNK + DONE, headers={'content-type': 'text/event-stream'})
+
+        await self.setup_gateway(upstream, concurrency=2, adaptive=True, adaptive_recovery_samples=1, deadline=0.2)
+        response = await asyncio.wait_for(self.exchange(b'slow').response(), 2)
+        self.assertEqual(response.status_code, 504)
+        metrics = (await self.client.get('/metrics')).text
+        self.assertIn('spikeguard_gateway_concurrency_limit 1.0\n', metrics)
+        response = await asyncio.wait_for(self.exchange().response(), 2)
+        self.assertEqual(response.content, CHUNK + DONE)
+        metrics = (await self.client.get('/metrics')).text
+        self.assertIn('spikeguard_gateway_concurrency_limit 2.0\n', metrics)
+
 
 if __name__ == '__main__':
     unittest.main()

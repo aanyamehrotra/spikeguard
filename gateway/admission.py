@@ -17,6 +17,7 @@ class Admission:
         paid_slots: int = 0, paid_queue_slots: int = 0,
     ):
         self.concurrency = concurrency
+        self.maximum = concurrency
         self.queue_limit = queue_limit
         self.queue_wait = queue_wait
         self.paid_slots = paid_slots
@@ -39,9 +40,18 @@ class Admission:
         return len(self._waiting[tier])
 
     def _can_start(self, tier: str) -> bool:
-        return self.active < self.concurrency and (
-            tier == 'paid' or self._active['free'] < self.concurrency - self.paid_slots
-        )
+        if tier == 'paid':
+            return self.active < self.concurrency or (
+                self._active['paid'] < self.paid_slots and self.active < self.maximum
+            )
+        return self.active < self.concurrency and self._active['free'] < self.concurrency - self.paid_slots
+
+    def saturated(self, tier: str) -> bool:
+        return not self._can_start(tier)
+
+    def resize(self, concurrency: int) -> None:
+        self.concurrency = concurrency
+        self._dispatch()
 
     async def _acquire(self, tier: str) -> None:
         if self._can_start(tier):

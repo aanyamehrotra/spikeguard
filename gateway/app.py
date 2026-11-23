@@ -12,6 +12,7 @@ import httpx
 from prometheus_client import CollectorRegistry, Counter, Gauge, generate_latest, CONTENT_TYPE_LATEST
 from starlette.requests import ClientDisconnect
 
+from .adaptive import AdaptiveConcurrency, FirstContent
 from .admission import Admission, Shed, TIER_HEADER, TIERS
 
 CHAT = '/v1/chat/completions'
@@ -27,6 +28,10 @@ class Settings:
     deadline: float = 25.0
     paid_slots: int = 0
     paid_queue_slots: int = 0
+    adaptive: bool = False
+    adaptive_min: int | None = None
+    adaptive_target: float = 1.5
+    adaptive_recovery_samples: int = 8
 
     def __post_init__(self):
         if self.concurrency < 1 or self.queue_limit < 0:
@@ -37,13 +42,25 @@ class Settings:
             raise ValueError('paid slots must leave at least one free upstream slot')
         if not 0 <= self.paid_queue_slots <= self.queue_limit:
             raise ValueError('paid queue slots must fit within the queue limit')
+        if not self.paid_slots < self.adaptive_floor <= self.concurrency:
+            raise ValueError('adaptive minimum must leave room for both lanes and fit within concurrency')
+        if not math.isfinite(self.adaptive_target) or self.adaptive_target <= 0 or self.adaptive_recovery_samples < 1:
+            raise ValueError('adaptive target and recovery sample count must be positive and finite')
 
     @property
     def priority_enabled(self):
         return bool(self.paid_slots or self.paid_queue_slots)
 
+    @property
+    def adaptive_floor(self):
+        return self.paid_slots + 1 if self.adaptive_min is None else self.adaptive_min
+
     @classmethod
     def from_env(cls):
+        adaptive = os.getenv('SPIKEGUARD_ADAPTIVE', '0')
+        if adaptive not in ('0', '1'):
+            raise ValueError('SPIKEGUARD_ADAPTIVE must be 0 or 1')
+        adaptive_min = os.getenv('SPIKEGUARD_ADAPTIVE_MIN')
         return cls(
             upstream=os.getenv('SPIKEGUARD_UPSTREAM', cls.upstream).rstrip('/'),
             concurrency=int(os.getenv('SPIKEGUARD_CONCURRENCY', cls.concurrency)),
@@ -52,6 +69,10 @@ class Settings:
             deadline=float(os.getenv('SPIKEGUARD_DEADLINE_S', cls.deadline)),
             paid_slots=int(os.getenv('SPIKEGUARD_PAID_SLOTS', cls.paid_slots)),
             paid_queue_slots=int(os.getenv('SPIKEGUARD_PAID_QUEUE_SLOTS', cls.paid_queue_slots)),
+            adaptive=adaptive == '1',
+            adaptive_min=int(adaptive_min) if adaptive_min else None,
+            adaptive_target=float(os.getenv('SPIKEGUARD_ADAPTIVE_TARGET_S', cls.adaptive_target)),
+            adaptive_recovery_samples=int(os.getenv('SPIKEGUARD_ADAPTIVE_RECOVERY_SAMPLES', cls.adaptive_recovery_samples)),
         )
 
 
@@ -68,10 +89,11 @@ async def watch_disconnect(receive, cancel_scope):
 class ProxyResponse(Response):
     """Keep the deadline, disconnect monitor and upstream lease alive through the body."""
 
-    def __init__(self, client, admission, shed_counter, tier_shed, payload, deadline, tier):
+    def __init__(self, client, admission, adaptive, shed_counter, tier_shed, payload, deadline, tier):
         super().__init__()
         self.client = client
         self.admission = admission
+        self.adaptive = adaptive
         self.shed_counter = shed_counter
         self.tier_shed = tier_shed
         self.payload = payload
@@ -92,17 +114,27 @@ class ProxyResponse(Response):
     async def forward(self, scope, receive, send):
         headers_sent = False
         try:
-            async with asyncio.timeout_at(self.deadline):
+            async with asyncio.timeout_at(self.deadline) as budget:
                 async with self.admission.slot(self.tier):
-                    upstream = await self.client.send(self.client.build_request(
-                        'POST', CHAT, content=self.payload,
-                        headers={'content-type': 'application/json', 'accept-encoding': 'identity'},
-                    ), stream=True)
+                    loop = asyncio.get_running_loop()
+                    started = loop.time()
+                    probe = FirstContent() if self.adaptive else None
+                    generation = self.adaptive.generation if self.adaptive else 0
+                    saturated = self.adaptive is not None and self.admission.saturated(self.tier)
+                    upstream = None
                     try:
+                        upstream = await self.client.send(self.client.build_request(
+                            'POST', CHAT, content=self.payload,
+                            headers={'content-type': 'application/json', 'accept-encoding': 'identity'},
+                        ), stream=True)
+                        content_type = upstream.headers.get('content-type', 'application/octet-stream')
+                        if probe is not None:
+                            if upstream.status_code == 429 or upstream.status_code >= 500:
+                                self.adaptive.record(generation, saturated, None)
+                            if not upstream.is_success or content_type.split(';', 1)[0].strip().lower() != 'text/event-stream':
+                                probe = None
                         headers = [
-                            (b'content-type', upstream.headers.get(
-                                'content-type', 'application/octet-stream',
-                            ).encode('latin-1')),
+                            (b'content-type', content_type.encode('latin-1')),
                             (b'cache-control', b'no-store'),
                         ]
                         headers_sent = True
@@ -111,11 +143,25 @@ class ProxyResponse(Response):
                             'headers': headers,
                         })
                         async for chunk in upstream.aiter_bytes():
+                            if probe is not None and probe.feed(chunk):
+                                self.adaptive.record(generation, saturated, loop.time() - started)
+                                probe = None
                             await send({'type': 'http.response.body', 'body': chunk, 'more_body': True})
+                        if probe is not None:
+                            self.adaptive.record(generation, saturated, None)
+                    except httpx.HTTPError:
+                        if probe is not None:
+                            self.adaptive.record(generation, saturated, None)
+                        raise
+                    except asyncio.CancelledError:
+                        if probe is not None and budget.expired():
+                            self.adaptive.record(generation, saturated, None)
+                        raise
                     finally:
                         # Finish closing the upstream before returning the slot.
-                        with anyio.CancelScope(shield=True):
-                            await upstream.aclose()
+                        if upstream is not None:
+                            with anyio.CancelScope(shield=True):
+                                await upstream.aclose()
         except Shed as exc:
             reason = str(exc)
             self.shed_counter.labels(reason).inc()
@@ -140,7 +186,15 @@ def create_app(settings=None, *, transport=None):
         settings.concurrency, settings.queue_limit, settings.queue_wait,
         settings.paid_slots, settings.paid_queue_slots,
     )
+    adaptive = None
+    if settings.adaptive:
+        adaptive = AdaptiveConcurrency(
+            admission, settings.adaptive_floor, settings.adaptive_target, settings.adaptive_recovery_samples,
+        )
     registry = CollectorRegistry()
+    Gauge('spikeguard_gateway_concurrency_limit', 'Current upstream concurrency limit.', registry=registry).set_function(
+        lambda: admission.concurrency,
+    )
     Gauge('spikeguard_gateway_active', 'Requests holding an upstream slot.', registry=registry).set_function(
         lambda: admission.active,
     )
@@ -208,7 +262,9 @@ def create_app(settings=None, *, transport=None):
             return error(504, 'deadline_exceeded')
         except ClientDisconnect:
             return Response(status_code=499)
-        return ProxyResponse(request.app.state.client, admission, shed_counter, tier_shed, bytes(body), deadline, tier)
+        return ProxyResponse(
+            request.app.state.client, admission, adaptive, shed_counter, tier_shed, bytes(body), deadline, tier,
+        )
 
     return app
 
