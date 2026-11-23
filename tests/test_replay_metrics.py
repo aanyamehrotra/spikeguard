@@ -30,3 +30,13 @@ class ReplayMetricsTests(unittest.TestCase):
                 ),
                 1,
             )
+
+    def test_per_tier_series_preserve_aggregate_counts(self):
+        metrics = ReplayMetrics(('spike',))
+        metrics.record_offer('spike', 'paid')
+        metrics.record({'phase': 'spike', 'tier': 'paid', 'outcome': 'completed', 'ttft_s': 0.75})
+        for tier, expected in (('paid', 1), ('free', 0)):
+            labels = {'phase': 'spike', 'tier': tier}
+            self.assertEqual(metrics.registry.get_sample_value('spikeguard_replay_tier_offered_total', labels), expected)
+            self.assertEqual(metrics.registry.get_sample_value('spikeguard_replay_tier_ttft_seconds_count', labels), expected)
+        self.assertEqual(metrics.registry.get_sample_value('spikeguard_replay_offered_total', {'phase': 'spike'}), 1)
