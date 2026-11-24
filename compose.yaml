@@ -9,6 +9,12 @@ services:
       SPIKEGUARD_QUEUE_LIMIT: ${SPIKEGUARD_QUEUE_LIMIT:-2}
       SPIKEGUARD_QUEUE_WAIT_S: ${SPIKEGUARD_QUEUE_WAIT_S:-0.25}
       SPIKEGUARD_DEADLINE_S: ${SPIKEGUARD_DEADLINE_S:-25}
+      SPIKEGUARD_PAID_SLOTS: ${SPIKEGUARD_PAID_SLOTS:-0}
+      SPIKEGUARD_PAID_QUEUE_SLOTS: ${SPIKEGUARD_PAID_QUEUE_SLOTS:-0}
+      SPIKEGUARD_ADAPTIVE: ${SPIKEGUARD_ADAPTIVE:-0}
+      SPIKEGUARD_ADAPTIVE_MIN: ${SPIKEGUARD_ADAPTIVE_MIN:-}
+      SPIKEGUARD_ADAPTIVE_TARGET_S: ${SPIKEGUARD_ADAPTIVE_TARGET_S:-1.5}
+      SPIKEGUARD_ADAPTIVE_RECOVERY_SAMPLES: ${SPIKEGUARD_ADAPTIVE_RECOVERY_SAMPLES:-8}
     ports:
       - "127.0.0.1:8081:8081"
 
@@ -29,7 +35,8 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     volumes:
-      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/provisioning/dashboards/spikeguard.yml:/etc/grafana/provisioning/dashboards/spikeguard.yml:ro
+      - ./observability/grafana/provisioning/datasources/prometheus.yml:/etc/grafana/provisioning/datasources/prometheus.yml:ro
       - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
 

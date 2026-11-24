@@ -1,4 +1,45 @@
-# Direct-to-model overload run
+# Benchmarks
+
+## Windows CPU pilot with llama.cpp
+
+The CPU pilot ran Qwen2.5-0.5B-Instruct Q4_K_M with llama.cpp build `b12244` (`d5bbcd1f3`) on a Windows 11 machine with an AMD Ryzen 7 5800H. The model used four CPU threads, two parallel slots, continuous batching and a 4096-token context. Prompt caching was disabled. Both gateways used two upstream slots, two queue places, a 250 ms queue wait and a 12-second deadline. The priority gateway reserved one slot and one queue place for paid traffic. The controller used fixed limits in this comparison. [llama.cpp build](https://github.com/ggml-org/llama.cpp/releases/tag/b12244) · [Qwen weights](https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/blob/main/qwen2.5-0.5b-instruct-q4_k_m.gguf)
+
+Each point ran twice with matched seeds, rotated target order, four seconds of warm-up and 18 measured seconds. The client deadline was 12 seconds. Five seconds of cooldown followed each trial's last client result.
+
+At the higher point, the two repeats offered 72 free and four paid requests per path. The configured rate was 2 free plus 0.125 paid requests per second.
+
+| Path | Free completed | Paid completed | Intentional sheds | Timeouts | Paid p95 TTFT per repeat |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Direct | 0 / 72 | 0 / 4 | 0 | 76 | — |
+| FIFO gateway | 12 / 72 | 0 / 4 | 64 | 0 | — |
+| Priority gateway | 7 / 72 | 2 / 4 | 67 | 0 | 3.16 s, 2.33 s |
+
+The gateways turned a long upstream backlog into explicit rejections. Their aggregate p95 rejection latency was at most 0.30 seconds in each repeat. The paid reservation preserved two paid completions, with fewer free completions than FIFO. Both lanes still shared CPU inference, and two paid requests were shed. Each reported paid p95 at the higher point is one completion, so treat these values as individual observations.
+
+At the lower point, every request finished on all three paths, but paid p95 TTFT exceeded 2 seconds in each repeat. Neither point met the SLO. The pilot gives an overload comparison with real inference. A longer sweep at lower offered rates is needed to establish capacity for this CPU. [Recorded trial summaries](windows-cpu-pilot.json)
+
+Use `python benchmarks/render_cpu_plot.py` with Matplotlib installed to regenerate the README chart from the archived JSON.
+
+### Reproduce the CPU pilot
+
+Download the build and model linked above. From PowerShell, start `llama-server.exe` on loopback.
+
+```powershell
+.\llama-server.exe --model .\qwen2.5-0.5b-instruct-q4_k_m.gguf --alias spikeguard `
+  --host 127.0.0.1 --port 18080 --parallel 2 --ctx-size 4096 --threads 4 --threads-batch 4 `
+  --n-gpu-layers 0 --cont-batching --no-cache-prompt --cache-ram 0 --metrics --no-webui
+```
+
+Run the FIFO and priority gateways on ports 18081 and 18082 with `SPIKEGUARD_UPSTREAM=http://127.0.0.1:18080` and `SPIKEGUARD_DEADLINE_S=12`. Set `SPIKEGUARD_PAID_SLOTS=1` and `SPIKEGUARD_PAID_QUEUE_SLOTS=1` in the priority gateway only. Use the commands in the fixture section for the gateway entry point. Send a few warm-up requests, then run the sweep.
+
+```powershell
+python capacity.py --target direct=http://127.0.0.1:18080 `
+  --target fifo=http://127.0.0.1:18081 --target priority=http://127.0.0.1:18082 `
+  --rates 0.125 2 --paid-rate 0.125 --warmup 4 --duration 18 --cooldown 5 `
+  --timeout 12 --repeats 2 --min-samples 2 --output runs/windows-cpu-pilot.json
+```
+
+## Direct-to-model overload run
 
 Measured on an Apple Silicon Mac using Homebrew llama.cpp 1.0.0, Qwen 2.5 3B Instruct Q4_K_M, two parallel slots and continuous batching. The client used seed 42 and a 15-second end-to-end deadline.
 
@@ -57,3 +98,39 @@ The native deferred queue peaked at 22 sampled requests during the direct run an
 The gateway kept completed spike requests below the 2-second TTFT target in these runs, while rejecting 79–88% of offered spike traffic. The resulting completion counts are small, and shedding persisted into recovery. These runs demonstrate admission control under overload. A steady-state rate sweep is needed to determine capacity under the completion SLO.
 
 Raw traces are available for the [direct run](observability-smoke.json), [gateway run 1](gateway-v1.json), and [gateway run 2](gateway-v1-repeat.json).
+
+## Steady-state sweep with a streaming fixture
+
+This smoke test ran on Windows with Python 3.12 and a [two-slot SSE fixture](mock_upstream.py). Each request occupies a fixture slot for 140 ms plus scheduling and I/O. The FIFO gateway used the default settings. The priority gateway reserved one of its two upstream slots and one of its two queue places for paid traffic. Both gateways used fixed concurrency. Each point ran twice with one second of warm-up, five measured seconds and a two-second client deadline.
+
+| Path | Verdict at 7 req/s | Verdict at 22 req/s | Free completed at 22 req/s | Paid completed at 22 req/s |
+| --- | --- | --- | ---: | ---: |
+| Direct | Pass, both repeats | Fail, both repeats | 78 / 200 | 8 / 20 |
+| FIFO gateway | Pass, both repeats | Fail, both repeats | 119 / 200 | 6 / 20 |
+| Priority gateway | Pass, both repeats | Fail, both repeats | 61 / 200 | 20 / 20 |
+
+At 22 req/s, direct replay timed out on 134 requests. The FIFO and priority gateways returned 95 and 139 intentional 429s, respectively, with zero unexpected errors. The priority gateway kept paid p95 TTFT at or below 0.08 seconds in both repeats. The aggregate failed the 99% completion target on all three paths. Seven requests per second was the highest passing point of the two tested. These short trials exercise the sweep and show the effect of reserving a lane. Apple Silicon capacity still needs a longer sweep on the native model. See the [recorded JSON](synthetic-capacity.json).
+
+To reproduce the fixture run, use three terminals at the repository root with the requirements installed. Start the fixture, then the FIFO and priority gateways.
+
+```sh
+python -m uvicorn benchmarks.mock_upstream:app --port 18080
+```
+
+```sh
+SPIKEGUARD_UPSTREAM=http://127.0.0.1:18080 python -m uvicorn gateway.app:app --port 18081
+```
+
+```sh
+SPIKEGUARD_UPSTREAM=http://127.0.0.1:18080 SPIKEGUARD_PAID_SLOTS=1 SPIKEGUARD_PAID_QUEUE_SLOTS=1 \
+  python -m uvicorn gateway.app:app --port 18082
+```
+
+Run the sweep from another terminal.
+
+```sh
+python capacity.py --target direct=http://127.0.0.1:18080 \
+  --target fifo=http://127.0.0.1:18081 --target priority=http://127.0.0.1:18082 \
+  --rates 5 20 --paid-rate 2 --warmup 1 --duration 5 --cooldown 0.5 \
+  --timeout 2 --repeats 2 --min-samples 8 --output runs/synthetic-capacity.json
+```

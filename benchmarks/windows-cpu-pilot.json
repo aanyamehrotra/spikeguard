@@ -1,0 +1,1026 @@
+{
+  "slo": {
+    "max_p95_ttft_s": 2,
+    "max_error_fraction": 0.01,
+    "min_completion_fraction": 0.99
+  },
+  "free_rates_rps": [
+    0.125,
+    2.0
+  ],
+  "paid_rate_rps": 0.125,
+  "warmup_s": 4.0,
+  "measured_s": 18.0,
+  "cooldown_s": 5.0,
+  "timeout_s": 12.0,
+  "repeats": 2,
+  "min_samples": 2,
+  "seed": 42,
+  "environment": "Windows 11 / AMD Ryzen 7 5800H / 4 CPU threads / llama.cpp b12244 d5bbcd1f3 / Qwen2.5-0.5B-Instruct Q4_K_M / 2 slots / 4096 context / prompt cache disabled / fixed FIFO or priority gateway, 2 active and 2 waiting, 250ms queue wait, 12s deadline",
+  "measurement": {
+    "ticket_count": 3,
+    "tickets_sha256": "5cc3c698cdf6c7a8ee3b1907aa9803c283bf5e71f718c3d91db7e301d1a8b6e7",
+    "client": {
+      "python": "3.12.14",
+      "httpx": "0.28.1",
+      "system": "Windows",
+      "machine": "AMD64"
+    }
+  },
+  "targets": {
+    "direct": {
+      "url": "http://127.0.0.1:57802",
+      "trials": [
+        {
+          "status": "fail",
+          "aggregate": {
+            "offered": 4,
+            "outcomes": {
+              "completed": 4
+            },
+            "offered_per_second": 0.2222222222222222,
+            "completion_fraction": 1.0,
+            "completed_per_offered_second": 0.2222222222222222,
+            "shed_fraction": 0.0,
+            "error_fraction": 0.0,
+            "median_ttft_s": 1.1794999996200204,
+            "p95_ttft_s": 2.625,
+            "p95_dispatch_lag_s": 0.014999999664723873,
+            "p95_completion_latency_s": 6.735000000335276,
+            "p95_shed_latency_s": null,
+            "checks": {
+              "ttft": false,
+              "errors": true,
+              "completion": true
+            },
+            "status": "fail"
+          },
+          "by_tier": {
+            "free": {
+              "offered": 2,
+              "outcomes": {
+                "completed": 2
+              },
+              "offered_per_second": 0.1111111111111111,
+              "completion_fraction": 1.0,
+              "completed_per_offered_second": 0.1111111111111111,
+              "shed_fraction": 0.0,
+              "error_fraction": 0.0,
+              "median_ttft_s": 0.8044999996200204,
+              "p95_ttft_s": 0.8439999995753169,
+              "p95_dispatch_lag_s": 0.014999999664723873,
+              "p95_completion_latency_s": 4.015999999828637,
+              "p95_shed_latency_s": null,
+              "checks": {
+                "ttft": true,
+                "errors": true,
+                "completion": true
+              },
+              "status": "pass"
+            },
+            "paid": {
+              "offered": 2,
+              "outcomes": {
+                "completed": 2
+              },
+              "offered_per_second": 0.1111111111111111,
+              "completion_fraction": 1.0,
+              "completed_per_offered_second": 0.1111111111111111,
+              "shed_fraction": 0.0,
+              "error_fraction": 0.0,
+              "median_ttft_s": 2.069999999832362,
+              "p95_ttft_s": 2.625,
+              "p95_dispatch_lag_s": 0.014999999664723873,
+              "p95_completion_latency_s": 6.735000000335276,
+              "p95_shed_latency_s": null,
+              "checks": {
+                "ttft": false,
+                "errors": true,
+                "completion": true
+              },
+              "status": "fail"
+            }
+          },
+          "free_rate_rps": 0.125,
+          "repeat": 1,
+          "seed": 42,
+          "execution_order": 1
+        },
+        {
+          "status": "fail",
+          "aggregate": {
+            "offered": 4,
+            "outcomes": {
+              "completed": 4
+            },
+            "offered_per_second": 0.2222222222222222,
+            "completion_fraction": 1.0,
+            "completed_per_offered_second": 0.2222222222222222,
+            "shed_fraction": 0.0,
+            "error_fraction": 0.0,
+            "median_ttft_s": 2.4994999999180436,
+            "p95_ttft_s": 3.4529999997466803,
+            "p95_dispatch_lag_s": 0.01600000075995922,
+            "p95_completion_latency_s": 10.125,
+            "p95_shed_latency_s": null,
+            "checks": {
+              "ttft": false,
+              "errors": true,
+              "completion": true
+            },
+            "status": "fail"
+          },
+          "by_tier": {
+            "free": {
+              "offered": 2,
+              "outcomes": {
+                "completed": 2
+              },
+              "offered_per_second": 0.1111111111111111,
+              "completion_fraction": 1.0,
+              "completed_per_offered_second": 0.1111111111111111,
+              "shed_fraction": 0.0,
+              "error_fraction": 0.0,
+              "median_ttft_s": 1.546499999705702,
+              "p95_ttft_s": 1.8590000001713634,
+              "p95_dispatch_lag_s": 0.01600000075995922,
+              "p95_completion_latency_s": 8.531000000424683,
+              "p95_shed_latency_s": null,
+              "checks": {
+                "ttft": true,
+                "errors": true,
+                "completion": true
+              },
+              "status": "pass"
+            },
+            "paid": {
+              "offered": 2,
+              "outcomes": {
+                "completed": 2
+              },
+              "offered_per_second": 0.1111111111111111,
+              "completion_fraction": 1.0,
+              "completed_per_offered_second": 0.1111111111111111,
+              "shed_fraction": 0.0,
+              "error_fraction": 0.0,
+              "median_ttft_s": 3.296499999705702,
+              "p95_ttft_s": 3.4529999997466803,
+              "p95_dispatch_lag_s": 0.01600000075995922,
+              "p95_completion_latency_s": 10.125,
+              "p95_shed_latency_s": null,
+              "checks": {
+                "ttft": false,
+                "errors": true,
+                "completion": true
+              },
+              "status": "fail"
+            }
+          },
+          "free_rate_rps": 0.125,
+          "repeat": 2,
+          "seed": 43,
+          "execution_order": 6
+        },
+        {
+          "status": "fail",
+          "aggregate": {
+            "offered": 38,
+            "outcomes": {
+              "timeout": 38
+            },
+            "offered_per_second": 2.111111111111111,
+            "completion_fraction": 0.0,
+            "completed_per_offered_second": 0.0,
+            "shed_fraction": 0.0,
+            "error_fraction": 1.0,
+            "median_ttft_s": null,
+            "p95_ttft_s": null,
+            "p95_dispatch_lag_s": 0.014999999664723873,
+            "p95_completion_latency_s": null,
+            "p95_shed_latency_s": null,
+            "checks": {
+              "ttft": false,
+              "errors": false,
+              "completion": false
+            },
+            "status": "fail"
+          },
+          "by_tier": {
+            "free": {
+              "offered": 36,
+              "outcomes": {
+                "timeout": 36
+              },
+              "offered_per_second": 2.0,
+              "completion_fraction": 0.0,
+              "completed_per_offered_second": 0.0,
+              "shed_fraction": 0.0,
+              "error_fraction": 1.0,
+              "median_ttft_s": null,
+              "p95_ttft_s": null,
+              "p95_dispatch_lag_s": 0.014999999664723873,
+              "p95_completion_latency_s": null,
+              "p95_shed_latency_s": null,
+              "checks": {
+                "ttft": false,
+                "errors": false,
+                "completion": false
+              },
+              "status": "fail"
+            },
+            "paid": {
+              "offered": 2,
+              "outcomes": {
+                "timeout": 2
+              },
+              "offered_per_second": 0.1111111111111111,
+              "completion_fraction": 0.0,
+              "completed_per_offered_second": 0.0,
+              "shed_fraction": 0.0,
+              "error_fraction": 1.0,
+              "median_ttft_s": null,
+              "p95_ttft_s": null,
+              "p95_dispatch_lag_s": 0.014999999664723873,
+              "p95_completion_latency_s": null,
+              "p95_shed_latency_s": null,
+              "checks": {
+                "ttft": false,
+                "errors": false,
+                "completion": false
+              },
+              "status": "fail"
+            }
+          },
+          "free_rate_rps": 2.0,
+          "repeat": 1,
+          "seed": 42,
+          "execution_order": 9
+        },
+        {
+          "status": "fail",
+          "aggregate": {
+            "offered": 38,
+            "outcomes": {
+              "timeout": 38
+            },
+            "offered_per_second": 2.111111111111111,
+            "completion_fraction": 0.0,
+            "completed_per_offered_second": 0.0,
+            "shed_fraction": 0.0,
+            "error_fraction": 1.0,
+            "median_ttft_s": null,
+            "p95_ttft_s": null,
+            "p95_dispatch_lag_s": 0.015000000596046448,
+            "p95_completion_latency_s": null,
+            "p95_shed_latency_s": null,
+            "checks": {
+              "ttft": false,
+              "errors": false,
+              "completion": false
+            },
+            "status": "fail"
+          },
+          "by_tier": {
+            "free": {
+              "offered": 36,
+              "outcomes": {
+                "timeout": 36
+              },
+              "offered_per_second": 2.0,
+              "completion_fraction": 0.0,
+              "completed_per_offered_second": 0.0,
+              "shed_fraction": 0.0,
+              "error_fraction": 1.0,
+              "median_ttft_s": null,
+              "p95_ttft_s": null,
+              "p95_dispatch_lag_s": 0.015000000596046448,
+              "p95_completion_latency_s": null,
+              "p95_shed_latency_s": null,
+              "checks": {
+                "ttft": false,
+                "errors": false,
+                "completion": false
+              },
+              "status": "fail"
+            },
+            "paid": {
+              "offered": 2,
+              "outcomes": {
+                "timeout": 2
+              },
+              "offered_per_second": 0.1111111111111111,
+              "completion_fraction": 0.0,
+              "completed_per_offered_second": 0.0,
+              "shed_fraction": 0.0,
+              "error_fraction": 1.0,
+              "median_ttft_s": null,
+              "p95_ttft_s": null,
+              "p95_dispatch_lag_s": 0.015000000596046448,
+              "p95_completion_latency_s": null,
+              "p95_shed_latency_s": null,
+              "checks": {
+                "ttft": false,
+                "errors": false,
+                "completion": false
+              },
+              "status": "fail"
+            }
+          },
+          "free_rate_rps": 2.0,
+          "repeat": 2,
+          "seed": 43,
+          "execution_order": 11
+        }
+      ],
+      "rates": [
+        {
+          "free_rate_rps": 0.125,
+          "paid_rate_rps": 0.125,
+          "total_rate_rps": 0.25,
+          "all_repeats_pass": false,
+          "repeat_statuses": [
+            "fail",
+            "fail"
+          ]
+        },
+        {
+          "free_rate_rps": 2.0,
+          "paid_rate_rps": 0.125,
+          "total_rate_rps": 2.125,
+          "all_repeats_pass": false,
+          "repeat_statuses": [
+            "fail",
+            "fail"
+          ]
+        }
+      ],
+      "highest_passing_rate": null
+    },
+    "fifo": {
+      "url": "http://127.0.0.1:57808",
+      "trials": [
+        {
+          "status": "fail",
+          "aggregate": {
+            "offered": 4,
+            "outcomes": {
+              "completed": 4
+            },
+            "offered_per_second": 0.2222222222222222,
+            "completion_fraction": 1.0,
+            "completed_per_offered_second": 0.2222222222222222,
+            "shed_fraction": 0.0,
+            "error_fraction": 0.0,
+            "median_ttft_s": 1.187000000383705,
+            "p95_ttft_s": 2.6409999998286366,
+            "p95_dispatch_lag_s": 0.015000000596046448,
+            "p95_completion_latency_s": 6.890999999828637,
+            "p95_shed_latency_s": null,
+            "checks": {
+              "ttft": false,
+              "errors": true,
+              "completion": true
+            },
+            "status": "fail"
+          },
+          "by_tier": {
+            "free": {
+              "offered": 2,
+              "outcomes": {
+                "completed": 2
+              },
+              "offered_per_second": 0.1111111111111111,
+              "completion_fraction": 1.0,
+              "completed_per_offered_second": 0.1111111111111111,
+              "shed_fraction": 0.0,
+              "error_fraction": 0.0,
+              "median_ttft_s": 0.8120000003837049,
+              "p95_ttft_s": 0.8430000003427267,
+              "p95_dispatch_lag_s": 0,
+              "p95_completion_latency_s": 4.125,
+              "p95_shed_latency_s": null,
+              "checks": {
+                "ttft": true,
+                "errors": true,
+                "completion": true
+              },
+              "status": "pass"
+            },
+            "paid": {
+              "offered": 2,
+              "outcomes": {
+                "completed": 2
+              },
+              "offered_per_second": 0.1111111111111111,
+              "completion_fraction": 1.0,
+              "completed_per_offered_second": 0.1111111111111111,
+              "shed_fraction": 0.0,
+              "error_fraction": 0.0,
+              "median_ttft_s": 2.08600000012666,
+              "p95_ttft_s": 2.6409999998286366,
+              "p95_dispatch_lag_s": 0.015000000596046448,
+              "p95_completion_latency_s": 6.890999999828637,
+              "p95_shed_latency_s": null,
+              "checks": {
+                "ttft": false,
+                "errors": true,
+                "completion": true
+              },
+              "status": "fail"
+            }
+          },
+          "free_rate_rps": 0.125,
+          "repeat": 1,
+          "seed": 42,
+          "execution_order": 2
+        },
+        {
+          "status": "fail",
+          "aggregate": {
+            "offered": 4,
+            "outcomes": {
+              "completed": 4
+            },
+            "offered_per_second": 0.2222222222222222,
+            "completion_fraction": 1.0,
+            "completed_per_offered_second": 0.2222222222222222,
+            "shed_fraction": 0.0,
+            "error_fraction": 0.0,
+            "median_ttft_s": 2.3359999996609986,
+            "p95_ttft_s": 2.953999999910593,
+            "p95_dispatch_lag_s": 0.014999999664723873,
+            "p95_completion_latency_s": 7.843999999575317,
+            "p95_shed_latency_s": null,
+            "checks": {
+              "ttft": false,
+              "errors": true,
+              "completion": true
+            },
+            "status": "fail"
+          },
+          "by_tier": {
+            "free": {
+              "offered": 2,
+              "outcomes": {
+                "completed": 2
+              },
+              "offered_per_second": 0.1111111111111111,
+              "completion_fraction": 1.0,
+              "completed_per_offered_second": 0.1111111111111111,
+              "shed_fraction": 0.0,
+              "error_fraction": 0.0,
+              "median_ttft_s": 1.4844999997876585,
+              "p95_ttft_s": 1.718999999575317,
+              "p95_dispatch_lag_s": 0.014999999664723873,
+              "p95_completion_latency_s": 7.813000000081956,
+              "p95_shed_latency_s": null,
+              "checks": {
+                "ttft": true,
+                "errors": true,
+                "completion": true
+              },
+              "status": "pass"
+            },
+            "paid": {
+              "offered": 2,
+              "outcomes": {
+                "completed": 2
+              },
+              "offered_per_second": 0.1111111111111111,
+              "completion_fraction": 1.0,
+              "completed_per_offered_second": 0.1111111111111111,
+              "shed_fraction": 0.0,
+              "error_fraction": 0.0,
+              "median_ttft_s": 2.9534999998286366,
+              "p95_ttft_s": 2.953999999910593,
+              "p95_dispatch_lag_s": 0.014999999664723873,
+              "p95_completion_latency_s": 7.843999999575317,
+              "p95_shed_latency_s": null,
+              "checks": {
+                "ttft": false,
+                "errors": true,
+                "completion": true
+              },
+              "status": "fail"
+            }
+          },
+          "free_rate_rps": 0.125,
+          "repeat": 2,
+          "seed": 43,
+          "execution_order": 4
+        },
+        {
+          "status": "fail",
+          "aggregate": {
+            "offered": 38,
+            "outcomes": {
+              "completed": 5,
+              "shed": 33
+            },
+            "offered_per_second": 2.111111111111111,
+            "completion_fraction": 0.13157894736842105,
+            "completed_per_offered_second": 0.2777777777777778,
+            "shed_fraction": 0.868421052631579,
+            "error_fraction": 0.0,
+            "median_ttft_s": 1.3590000001713634,
+            "p95_ttft_s": 2.3279999997466803,
+            "p95_dispatch_lag_s": 0.015999999828636646,
+            "p95_completion_latency_s": 9.71900000050664,
+            "p95_shed_latency_s": 0.2810000004246831,
+            "checks": {
+              "ttft": false,
+              "errors": true,
+              "completion": false
+            },
+            "status": "fail"
+          },
+          "by_tier": {
+            "free": {
+              "offered": 36,
+              "outcomes": {
+                "completed": 5,
+                "shed": 31
+              },
+              "offered_per_second": 2.0,
+              "completion_fraction": 0.1388888888888889,
+              "completed_per_offered_second": 0.2777777777777778,
+              "shed_fraction": 0.8611111111111112,
+              "error_fraction": 0.0,
+              "median_ttft_s": 1.3590000001713634,
+              "p95_ttft_s": 2.3279999997466803,
+              "p95_dispatch_lag_s": 0.015999999828636646,
+              "p95_completion_latency_s": 9.71900000050664,
+              "p95_shed_latency_s": 0.2810000004246831,
+              "checks": {
+                "ttft": false,
+                "errors": true,
+                "completion": false
+              },
+              "status": "fail"
+            },
+            "paid": {
+              "offered": 2,
+              "outcomes": {
+                "shed": 2
+              },
+              "offered_per_second": 0.1111111111111111,
+              "completion_fraction": 0.0,
+              "completed_per_offered_second": 0.0,
+              "shed_fraction": 1.0,
+              "error_fraction": 0.0,
+              "median_ttft_s": null,
+              "p95_ttft_s": null,
+              "p95_dispatch_lag_s": 0,
+              "p95_completion_latency_s": null,
+              "p95_shed_latency_s": 0.2810000004246831,
+              "checks": {
+                "ttft": false,
+                "errors": true,
+                "completion": false
+              },
+              "status": "fail"
+            }
+          },
+          "free_rate_rps": 2.0,
+          "repeat": 1,
+          "seed": 42,
+          "execution_order": 7
+        },
+        {
+          "status": "fail",
+          "aggregate": {
+            "offered": 38,
+            "outcomes": {
+              "shed": 31,
+              "completed": 7
+            },
+            "offered_per_second": 2.111111111111111,
+            "completion_fraction": 0.18421052631578946,
+            "completed_per_offered_second": 0.3888888888888889,
+            "shed_fraction": 0.8157894736842105,
+            "error_fraction": 0.0,
+            "median_ttft_s": 0.8440000005066395,
+            "p95_ttft_s": 1.4840000001713634,
+            "p95_dispatch_lag_s": 0.014999999664723873,
+            "p95_completion_latency_s": 7.70299999974668,
+            "p95_shed_latency_s": 0.2810000004246831,
+            "checks": {
+              "ttft": true,
+              "errors": true,
+              "completion": false
+            },
+            "status": "fail"
+          },
+          "by_tier": {
+            "free": {
+              "offered": 36,
+              "outcomes": {
+                "shed": 29,
+                "completed": 7
+              },
+              "offered_per_second": 2.0,
+              "completion_fraction": 0.19444444444444445,
+              "completed_per_offered_second": 0.3888888888888889,
+              "shed_fraction": 0.8055555555555556,
+              "error_fraction": 0.0,
+              "median_ttft_s": 0.8440000005066395,
+              "p95_ttft_s": 1.4840000001713634,
+              "p95_dispatch_lag_s": 0.014999999664723873,
+              "p95_completion_latency_s": 7.70299999974668,
+              "p95_shed_latency_s": 0.2810000004246831,
+              "checks": {
+                "ttft": true,
+                "errors": true,
+                "completion": false
+              },
+              "status": "fail"
+            },
+            "paid": {
+              "offered": 2,
+              "outcomes": {
+                "shed": 2
+              },
+              "offered_per_second": 0.1111111111111111,
+              "completion_fraction": 0.0,
+              "completed_per_offered_second": 0.0,
+              "shed_fraction": 1.0,
+              "error_fraction": 0.0,
+              "median_ttft_s": null,
+              "p95_ttft_s": null,
+              "p95_dispatch_lag_s": 0.014999999664723873,
+              "p95_completion_latency_s": null,
+              "p95_shed_latency_s": 0.2810000004246831,
+              "checks": {
+                "ttft": false,
+                "errors": true,
+                "completion": false
+              },
+              "status": "fail"
+            }
+          },
+          "free_rate_rps": 2.0,
+          "repeat": 2,
+          "seed": 43,
+          "execution_order": 12
+        }
+      ],
+      "rates": [
+        {
+          "free_rate_rps": 0.125,
+          "paid_rate_rps": 0.125,
+          "total_rate_rps": 0.25,
+          "all_repeats_pass": false,
+          "repeat_statuses": [
+            "fail",
+            "fail"
+          ]
+        },
+        {
+          "free_rate_rps": 2.0,
+          "paid_rate_rps": 0.125,
+          "total_rate_rps": 2.125,
+          "all_repeats_pass": false,
+          "repeat_statuses": [
+            "fail",
+            "fail"
+          ]
+        }
+      ],
+      "highest_passing_rate": null
+    },
+    "priority": {
+      "url": "http://127.0.0.1:57816",
+      "trials": [
+        {
+          "status": "fail",
+          "aggregate": {
+            "offered": 4,
+            "outcomes": {
+              "completed": 4
+            },
+            "offered_per_second": 0.2222222222222222,
+            "completion_fraction": 1.0,
+            "completed_per_offered_second": 0.2222222222222222,
+            "shed_fraction": 0.0,
+            "error_fraction": 0.0,
+            "median_ttft_s": 1.1405000002123415,
+            "p95_ttft_s": 2.625,
+            "p95_dispatch_lag_s": 0.015999999828636646,
+            "p95_completion_latency_s": 6.686999999918044,
+            "p95_shed_latency_s": null,
+            "checks": {
+              "ttft": false,
+              "errors": true,
+              "completion": true
+            },
+            "status": "fail"
+          },
+          "by_tier": {
+            "free": {
+              "offered": 2,
+              "outcomes": {
+                "completed": 2
+              },
+              "offered_per_second": 0.1111111111111111,
+              "completion_fraction": 1.0,
+              "completed_per_offered_second": 0.1111111111111111,
+              "shed_fraction": 0.0,
+              "error_fraction": 0.0,
+              "median_ttft_s": 0.7965000001713634,
+              "p95_ttft_s": 0.7970000002533197,
+              "p95_dispatch_lag_s": 0.015999999828636646,
+              "p95_completion_latency_s": 3.9840000001713634,
+              "p95_shed_latency_s": null,
+              "checks": {
+                "ttft": true,
+                "errors": true,
+                "completion": true
+              },
+              "status": "pass"
+            },
+            "paid": {
+              "offered": 2,
+              "outcomes": {
+                "completed": 2
+              },
+              "offered_per_second": 0.1111111111111111,
+              "completion_fraction": 1.0,
+              "completed_per_offered_second": 0.1111111111111111,
+              "shed_fraction": 0.0,
+              "error_fraction": 0.0,
+              "median_ttft_s": 2.0545000000856817,
+              "p95_ttft_s": 2.625,
+              "p95_dispatch_lag_s": 0.015999999828636646,
+              "p95_completion_latency_s": 6.686999999918044,
+              "p95_shed_latency_s": null,
+              "checks": {
+                "ttft": false,
+                "errors": true,
+                "completion": true
+              },
+              "status": "fail"
+            }
+          },
+          "free_rate_rps": 0.125,
+          "repeat": 1,
+          "seed": 42,
+          "execution_order": 3
+        },
+        {
+          "status": "fail",
+          "aggregate": {
+            "offered": 4,
+            "outcomes": {
+              "completed": 4
+            },
+            "offered_per_second": 0.2222222222222222,
+            "completion_fraction": 1.0,
+            "completed_per_offered_second": 0.2222222222222222,
+            "shed_fraction": 0.0,
+            "error_fraction": 0.0,
+            "median_ttft_s": 2.3049999997019768,
+            "p95_ttft_s": 3.0,
+            "p95_dispatch_lag_s": 0.014999999664723873,
+            "p95_completion_latency_s": 7.936999999918044,
+            "p95_shed_latency_s": null,
+            "checks": {
+              "ttft": false,
+              "errors": true,
+              "completion": true
+            },
+            "status": "fail"
+          },
+          "by_tier": {
+            "free": {
+              "offered": 2,
+              "outcomes": {
+                "completed": 2
+              },
+              "offered_per_second": 0.1111111111111111,
+              "completion_fraction": 1.0,
+              "completed_per_offered_second": 0.1111111111111111,
+              "shed_fraction": 0.0,
+              "error_fraction": 0.0,
+              "median_ttft_s": 1.4609999996609986,
+              "p95_ttft_s": 1.7809999994933605,
+              "p95_dispatch_lag_s": 0.014999999664723873,
+              "p95_completion_latency_s": 7.936999999918044,
+              "p95_shed_latency_s": null,
+              "checks": {
+                "ttft": true,
+                "errors": true,
+                "completion": true
+              },
+              "status": "pass"
+            },
+            "paid": {
+              "offered": 2,
+              "outcomes": {
+                "completed": 2
+              },
+              "offered_per_second": 0.1111111111111111,
+              "completion_fraction": 1.0,
+              "completed_per_offered_second": 0.1111111111111111,
+              "shed_fraction": 0.0,
+              "error_fraction": 0.0,
+              "median_ttft_s": 2.9144999999552965,
+              "p95_ttft_s": 3.0,
+              "p95_dispatch_lag_s": 0.014999999664723873,
+              "p95_completion_latency_s": 7.875,
+              "p95_shed_latency_s": null,
+              "checks": {
+                "ttft": false,
+                "errors": true,
+                "completion": true
+              },
+              "status": "fail"
+            }
+          },
+          "free_rate_rps": 0.125,
+          "repeat": 2,
+          "seed": 43,
+          "execution_order": 5
+        },
+        {
+          "status": "fail",
+          "aggregate": {
+            "offered": 38,
+            "outcomes": {
+              "shed": 34,
+              "completed": 4
+            },
+            "offered_per_second": 2.111111111111111,
+            "completion_fraction": 0.10526315789473684,
+            "completed_per_offered_second": 0.2222222222222222,
+            "shed_fraction": 0.8947368421052632,
+            "error_fraction": 0.0,
+            "median_ttft_s": 1.812000000383705,
+            "p95_ttft_s": 3.1569999996572733,
+            "p95_dispatch_lag_s": 0.015999999828636646,
+            "p95_completion_latency_s": 10.515000000596046,
+            "p95_shed_latency_s": 0.2819999996572733,
+            "checks": {
+              "ttft": false,
+              "errors": true,
+              "completion": false
+            },
+            "status": "fail"
+          },
+          "by_tier": {
+            "free": {
+              "offered": 36,
+              "outcomes": {
+                "shed": 33,
+                "completed": 3
+              },
+              "offered_per_second": 2.0,
+              "completion_fraction": 0.08333333333333333,
+              "completed_per_offered_second": 0.16666666666666666,
+              "shed_fraction": 0.9166666666666666,
+              "error_fraction": 0.0,
+              "median_ttft_s": 1.406000000424683,
+              "p95_ttft_s": 2.2180000003427267,
+              "p95_dispatch_lag_s": 0.015999999828636646,
+              "p95_completion_latency_s": 10.515000000596046,
+              "p95_shed_latency_s": 0.2819999996572733,
+              "checks": {
+                "ttft": false,
+                "errors": true,
+                "completion": false
+              },
+              "status": "fail"
+            },
+            "paid": {
+              "offered": 2,
+              "outcomes": {
+                "completed": 1,
+                "shed": 1
+              },
+              "offered_per_second": 0.1111111111111111,
+              "completion_fraction": 0.5,
+              "completed_per_offered_second": 0.05555555555555555,
+              "shed_fraction": 0.5,
+              "error_fraction": 0.0,
+              "median_ttft_s": 3.1569999996572733,
+              "p95_ttft_s": 3.1569999996572733,
+              "p95_dispatch_lag_s": 0,
+              "p95_completion_latency_s": 9.515999999828637,
+              "p95_shed_latency_s": 0.2819999996572733,
+              "checks": {
+                "ttft": false,
+                "errors": true,
+                "completion": false
+              },
+              "status": "fail"
+            }
+          },
+          "free_rate_rps": 2.0,
+          "repeat": 1,
+          "seed": 42,
+          "execution_order": 8
+        },
+        {
+          "status": "fail",
+          "aggregate": {
+            "offered": 38,
+            "outcomes": {
+              "completed": 5,
+              "shed": 33
+            },
+            "offered_per_second": 2.111111111111111,
+            "completion_fraction": 0.13157894736842105,
+            "completed_per_offered_second": 0.2777777777777778,
+            "shed_fraction": 0.868421052631579,
+            "error_fraction": 0.0,
+            "median_ttft_s": 1.9690000005066395,
+            "p95_ttft_s": 2.328000000678003,
+            "p95_dispatch_lag_s": 0.015999999828636646,
+            "p95_completion_latency_s": 8.453000000678003,
+            "p95_shed_latency_s": 0.29700000025331974,
+            "checks": {
+              "ttft": false,
+              "errors": true,
+              "completion": false
+            },
+            "status": "fail"
+          },
+          "by_tier": {
+            "free": {
+              "offered": 36,
+              "outcomes": {
+                "completed": 4,
+                "shed": 32
+              },
+              "offered_per_second": 2.0,
+              "completion_fraction": 0.1111111111111111,
+              "completed_per_offered_second": 0.2222222222222222,
+              "shed_fraction": 0.8888888888888888,
+              "error_fraction": 0.0,
+              "median_ttft_s": 1.4690000005066395,
+              "p95_ttft_s": 2.0,
+              "p95_dispatch_lag_s": 0.015999999828636646,
+              "p95_completion_latency_s": 8.453000000678003,
+              "p95_shed_latency_s": 0.29700000025331974,
+              "checks": {
+                "ttft": false,
+                "errors": true,
+                "completion": false
+              },
+              "status": "fail"
+            },
+            "paid": {
+              "offered": 2,
+              "outcomes": {
+                "shed": 1,
+                "completed": 1
+              },
+              "offered_per_second": 0.1111111111111111,
+              "completion_fraction": 0.5,
+              "completed_per_offered_second": 0.05555555555555555,
+              "shed_fraction": 0.5,
+              "error_fraction": 0.0,
+              "median_ttft_s": 2.328000000678003,
+              "p95_ttft_s": 2.328000000678003,
+              "p95_dispatch_lag_s": 0.015999999828636646,
+              "p95_completion_latency_s": 6.125,
+              "p95_shed_latency_s": 0.2810000004246831,
+              "checks": {
+                "ttft": false,
+                "errors": true,
+                "completion": false
+              },
+              "status": "fail"
+            }
+          },
+          "free_rate_rps": 2.0,
+          "repeat": 2,
+          "seed": 43,
+          "execution_order": 10
+        }
+      ],
+      "rates": [
+        {
+          "free_rate_rps": 0.125,
+          "paid_rate_rps": 0.125,
+          "total_rate_rps": 0.25,
+          "all_repeats_pass": false,
+          "repeat_statuses": [
+            "fail",
+            "fail"
+          ]
+        },
+        {
+          "free_rate_rps": 2.0,
+          "paid_rate_rps": 0.125,
+          "total_rate_rps": 2.125,
+          "all_repeats_pass": false,
+          "repeat_statuses": [
+            "fail",
+            "fail"
+          ]
+        }
+      ],
+      "highest_passing_rate": null
+    }
+  }
+}
