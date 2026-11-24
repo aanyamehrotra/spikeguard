@@ -35,7 +35,8 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     volumes:
-      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/provisioning/dashboards/spikeguard.yml:/etc/grafana/provisioning/dashboards/spikeguard.yml:ro
+      - ./observability/grafana/provisioning/datasources/prometheus.yml:/etc/grafana/provisioning/datasources/prometheus.yml:ro
       - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
 
