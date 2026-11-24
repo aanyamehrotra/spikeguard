@@ -65,12 +65,17 @@ class Admission:
         ):
             raise Shed('queue_full')
 
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + self.queue_wait
         turn = asyncio.Event()
         queue.append(turn)
         try:
             try:
-                async with asyncio.timeout(self.queue_wait):
+                async with asyncio.timeout_at(deadline):
                     await turn.wait()
+                    # An already-ready handoff can run ahead of its overdue timeout callback.
+                    if loop.time() >= deadline:
+                        raise TimeoutError
             except TimeoutError:
                 raise Shed('queue_wait_expired') from None
         except BaseException:

@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import httpx
 
-from gateway.admission import Admission, SHED_HEADER, TIER_HEADER
+from gateway.admission import Admission, SHED_HEADER, Shed, TIER_HEADER
 from gateway.app import CHAT, MAX_BODY_BYTES, Settings, create_app
 
 CHUNK = b'data: {"choices":[{"delta":{"content":"summary"}}]}\n\n'
@@ -61,6 +61,30 @@ class Exchange:
 
 
 class AdmissionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_handoff_after_queue_deadline_is_shed_before_admission(self):
+        admission = Admission(1, 1, 60)
+        loop = asyncio.get_running_loop()
+        self.addCleanup(loop.set_debug, loop.get_debug())
+        loop.set_debug(False)
+        clock = loop.time
+        offset = 0
+
+        async def acquire():
+            async with admission.slot():
+                self.fail('An expired waiter received an upstream slot')
+
+        with patch.object(loop, 'time', side_effect=lambda: clock() + offset):
+            async with admission.slot():
+                expired = asyncio.create_task(acquire())
+                await asyncio.sleep(0)
+                self.assertEqual(admission.depth, 1)
+                # Hold the loop turn across the deadline, then release before timers run.
+                offset = 61
+            with self.assertRaisesRegex(Shed, 'queue_wait_expired'):
+                await expired
+
+        self.assertEqual((admission.active, admission.depth), (0, 0))
+
     async def test_cancelled_handoff_passes_slot_to_next_waiter(self):
         admission = Admission(1, 2, 3)
 
