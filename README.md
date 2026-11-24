@@ -4,7 +4,7 @@
 
 When inference slots fill up, queued requests can spend their entire deadline waiting for a first token. SpikeGuard bounds that queue, rejects excess work with `429 Retry-After`, and can reserve admission capacity for paid traffic. It streams responses from a local llama.cpp server and measures the trade-off between fast rejections and successful completions.
 
-[Run the demo](#run-the-demo) · [See the benchmark](#what-happened-under-overload) · [Read the runbook](docs/runbook.md)
+[Run the demo](#run-the-demo) · [Present the project](docs/demo.md) · [See the benchmark](#what-happened-under-overload) · [Read the runbook](docs/runbook.md)
 
 ## Run the demo
 
@@ -15,7 +15,7 @@ With Python 3.11 or newer, the demo runs the real gateway over HTTP against a tw
 ```sh
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
-.venv/bin/python -m scripts.demo
+.venv/bin/python -m scripts.demo --html runs/demo.html
 ```
 
 **Windows PowerShell**
@@ -23,10 +23,10 @@ python3 -m venv .venv
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m scripts.demo
+.\.venv\Scripts\python.exe -m scripts.demo --html runs/demo.html
 ```
 
-The demo sends the same seeded requests directly to the fixture, through a FIFO gateway, and through a gateway with a paid reservation. The terminal shows completions, intentional sheds, errors, and p95 time to first content by tier. It saves phase summaries and request traces to `runs/demo.json`.
+The demo sends the same seeded requests directly to the fixture, through a FIFO gateway, and through a gateway with a paid reservation. Open `runs/demo.html` to compare completion, shedding, and time to first content by tier and phase. The report works offline. The terminal prints the spike results, and `runs/demo.json` contains the request traces.
 
 In one checked fixture run, FIFO completed **2 of 6** paid spike requests. The priority gateway completed **6 of 6** and shed **52 of 72** free requests, with zero unexpected errors. Add `--check` to check paid admission, recovery, `Retry-After`, and slot cleanup in your run.
 
@@ -57,7 +57,7 @@ flowchart LR
 
 ## Run a real model
 
-On Apple Silicon, install native llama.cpp with `brew install llama.cpp` and launch `./scripts/serve.sh`. The default Qwen2.5 0.5B model is about **491 MB**, with two CPU threads and a 128 MiB prompt-cache limit. The default model replay sends five requests over 28 seconds. The runbook covers local GGUF files, CPU-only inference, the Windows pilot, and optional Docker Desktop monitoring. [Runbook](docs/runbook.md)
+SpikeGuard includes native launchers for Apple Silicon and Windows. The default Qwen2.5 0.5B model is about **491 MB**, with two CPU threads and a 128 MiB prompt-cache limit. The default model replay sends five requests over 28 seconds. The runbook covers local GGUF files, CPU-only inference, and optional Docker Desktop monitoring. [Runbook](docs/runbook.md)
 
 ## Verify and explore
 
