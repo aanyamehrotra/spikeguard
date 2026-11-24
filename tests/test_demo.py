@@ -7,7 +7,30 @@ import httpx
 
 from gateway.admission import TIER_HEADER
 from gateway.app import CHAT, Settings, create_app
-from scripts.demo import serve
+from scripts.demo import serve, wait_for_gateway_drain
+
+
+class GatewayDrainTests(unittest.IsolatedAsyncioTestCase):
+    async def test_waits_for_cleanup_before_reporting_the_gateway_drained(self):
+        active_samples = iter([1, 0])
+
+        def metrics(_request):
+            active = next(active_samples)
+            return httpx.Response(200, text=f'spikeguard_gateway_active {active}\nspikeguard_gateway_queue_depth 0\n')
+
+        async with httpx.AsyncClient(base_url='http://localhost', transport=httpx.MockTransport(metrics)) as client:
+            activity = await wait_for_gateway_drain(client)
+
+        self.assertEqual(activity, {'spikeguard_gateway_active': 0, 'spikeguard_gateway_queue_depth': 0})
+
+    async def test_reports_last_observed_activity_if_the_drain_times_out(self):
+        def metrics(_request):
+            return httpx.Response(200, text='spikeguard_gateway_active 1\nspikeguard_gateway_queue_depth 0\n')
+
+        async with httpx.AsyncClient(base_url='http://localhost', transport=httpx.MockTransport(metrics)) as client:
+            activity = await wait_for_gateway_drain(client, timeout=0.1)
+
+        self.assertEqual(activity, {'spikeguard_gateway_active': 1, 'spikeguard_gateway_queue_depth': 0})
 
 
 class SocketReplayTests(unittest.IsolatedAsyncioTestCase):

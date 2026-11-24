@@ -20,6 +20,7 @@ DURATIONS = (1, 3, 1)
 SEED = 42
 TIMEOUT = 1.5
 ROOT = Path(__file__).resolve().parents[1]
+DRAINED = {'spikeguard_gateway_active': 0, 'spikeguard_gateway_queue_depth': 0}
 
 
 class EmbeddedServer(uvicorn.Server):
@@ -51,6 +52,27 @@ async def serve(app):
             await task
 
 
+async def wait_for_gateway_drain(client, *, timeout=2.0):
+    # A replay client can finish before the server releases the final slot.
+    activity = {}
+    try:
+        async with asyncio.timeout(timeout):
+            while True:
+                response = await client.get('/metrics')
+                response.raise_for_status()
+                activity = {
+                    sample.name: sample.value
+                    for metric in text_string_to_metric_families(response.text)
+                    for sample in metric.samples
+                    if sample.name in DRAINED
+                }
+                if activity == DRAINED:
+                    return activity
+                await asyncio.sleep(0.05)
+    except TimeoutError:
+        return activity
+
+
 async def run_demo(tickets):
     targets = {}
     for name in ('direct', 'fifo', 'priority'):
@@ -71,14 +93,7 @@ async def run_demo(tickets):
             rows = await replay(traffic, tickets)
             result = dict(summary=summarize(rows, DURATIONS), tier_summary=summarize_by_tier(rows, DURATIONS), requests=rows)
             if name != 'direct':
-                response = await client.get('/metrics')
-                response.raise_for_status()
-                result['gateway_drained'] = {
-                    sample.name: sample.value
-                    for metric in text_string_to_metric_families(response.text)
-                    for sample in metric.samples
-                    if sample.name in {'spikeguard_gateway_active', 'spikeguard_gateway_queue_depth'}
-                }
+                result['gateway_drained'] = await wait_for_gateway_drain(client)
             targets[name] = result
     return dict(
         upstream='Two-slot streaming fixture (40 ms to first content, 140 ms slot occupancy before I/O)',
@@ -96,7 +111,6 @@ def check_report(report):
     priority = targets['priority']
     paid_spike = priority['tier_summary']['paid']['spike']
     free_spike = priority['tier_summary']['free']['spike']
-    drained = {'spikeguard_gateway_active': 0, 'spikeguard_gateway_queue_depth': 0}
     checks = {
         'identical offered traffic': bool(schedules[0]) and all(schedule == schedules[0] for schedule in schedules),
         'priority paid traffic completed through the spike': paid_spike['completion_fraction'] == 1,
@@ -110,7 +124,7 @@ def check_report(report):
             row.get('retry_after') == '1'
             for name in ('fifo', 'priority') for row in targets[name]['requests'] if row['outcome'] == 'shed'
         ),
-        'both gateways drained': all(targets[name]['gateway_drained'] == drained for name in ('fifo', 'priority')),
+        'both gateways drained': all(targets[name]['gateway_drained'] == DRAINED for name in ('fifo', 'priority')),
     }
     return [description for description, passed in checks.items() if not passed]
 
