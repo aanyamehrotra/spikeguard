@@ -18,6 +18,8 @@ The gateways turned a long upstream backlog into explicit rejections. Their aggr
 
 At the lower point, every request finished on all three paths, but paid p95 TTFT exceeded 2 seconds in each repeat. Neither point met the SLO. The pilot gives an overload comparison with real inference. A longer sweep at lower offered rates is needed to establish capacity for this CPU. [Recorded trial summaries](windows-cpu-pilot.json)
 
+Use `python benchmarks/render_cpu_plot.py` with Matplotlib installed to regenerate the README chart from the archived JSON.
+
 ### Reproduce the CPU pilot
 
 Download the build and model linked above. From PowerShell, start `llama-server.exe` on loopback.
