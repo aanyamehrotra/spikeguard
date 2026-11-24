@@ -13,6 +13,7 @@ import uvicorn
 from benchmarks.mock_upstream import create_mock_upstream
 from gateway.app import Settings, create_app
 from replay import replay, summarize, summarize_by_tier
+from scripts.demo_report import render_html
 
 RATES = (4, 24, 4)
 PAID_RATES = (2, 2, 2)
@@ -133,7 +134,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check', action='store_true', help='Fail if core overload and recovery invariants are violated')
     parser.add_argument('--output', type=Path, default=Path('runs/demo.json'), help='Write the JSON report to this path')
+    parser.add_argument('--html', type=Path, help='Also write a standalone HTML report to this path')
     args = parser.parse_args()
+    if args.html is not None and args.html.resolve() == args.output.resolve():
+        parser.error('--html and --output must use different paths')
 
     tickets = json.loads((ROOT / 'tickets.json').read_text(encoding='utf-8'))
     print('Running three matched 5-second replays against a local streaming fixture...', flush=True)
@@ -155,6 +159,10 @@ def main():
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
     print(f'\nReport written to {args.output}')
+    if args.html is not None:
+        args.html.parent.mkdir(parents=True, exist_ok=True)
+        args.html.write_text(render_html(report), encoding='utf-8')
+        print(f'HTML report written to {args.html}')
     if args.check:
         failures = check_report(report)
         if failures:

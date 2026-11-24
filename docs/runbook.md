@@ -24,7 +24,19 @@ The first launch downloads Qwen2.5 0.5B Instruct Q4_K_M (about 491 MB) and lets 
 | `LLAMA_GPU_LAYERS` | `auto` | Select GPU offload. Set to `0` for CPU inference. |
 | `LLAMA_CACHE_MIB` | `128` | Prompt-cache memory limit in MiB |
 
-For the larger model used in the historical Apple Silicon runs, set `LLAMA_MODEL_REPO=Qwen/Qwen2.5-3B-Instruct-GGUF:Q4_K_M` and `CONTEXT=8192`. For Windows CPU, see the [native reproduction commands](../benchmarks/README.md#reproduce-the-cpu-pilot). For other installations, use a native llama.cpp build with an OpenAI-compatible chat endpoint on loopback. [llama.cpp server options](https://github.com/ggml-org/llama.cpp/blob/v1.0.0/tools/server/README.md)
+For the larger model used in the historical Apple Silicon runs, set `LLAMA_MODEL_REPO=Qwen/Qwen2.5-3B-Instruct-GGUF:Q4_K_M` and `CONTEXT=8192`. For other installations, use a native llama.cpp build with an OpenAI-compatible chat endpoint on loopback. [llama.cpp server options](https://github.com/ggml-org/llama.cpp/blob/v1.0.0/tools/server/README.md)
+
+## Start llama.cpp on Windows
+
+Extract a Windows CPU release of llama.cpp. Keep its DLLs beside `llama-server.exe`. Set the executable path if it is outside `PATH`. The launcher downloads the default small model on first run. Set `LLAMA_MODEL_PATH` to reuse a GGUF file.
+
+```powershell
+$env:LLAMA_SERVER_PATH = 'C:\llama.cpp\llama-server.exe'
+$env:LLAMA_GPU_LAYERS = '0'
+powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File .\scripts\serve.ps1
+```
+
+The PowerShell launcher uses the model and resource settings in the table above. Open a second PowerShell terminal for the replay or gateway, using `.\.venv\Scripts\python.exe`. [CPU benchmark reproduction steps](../benchmarks/README.md#reproduce-the-cpu-pilot)
 
 ## Compare direct and gateway replays
 
